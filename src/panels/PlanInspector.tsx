@@ -57,7 +57,9 @@ export function PlanInspector() {
     );
     for (const g of arr) {
       g.systems.sort((a, b) => {
-        if (a.balanced !== b.balanced) return a.balanced ? 1 : -1;
+        const aOver = a.consumedPower > a.availablePower || a.consumedWorkforce > a.availableWorkforce;
+        const bOver = b.consumedPower > b.availablePower || b.consumedWorkforce > b.availableWorkforce;
+        if (aOver !== bOver) return aOver ? -1 : 1;
         return a.systemName.localeCompare(b.systemName);
       });
     }
@@ -108,7 +110,7 @@ export function PlanInspector() {
           <div className="inspector-tree">
             {grouped.map((g) => {
               const isCollapsed = collapsed.has(g.constellationId);
-              const overCount = g.systems.filter((s) => !s.balanced).length;
+              const overCount = g.systems.filter((s) => s.consumedPower > s.availablePower || s.consumedWorkforce > s.availableWorkforce).length;
               const cTotals = aggregateTotals(g.systems);
               return (
                 <div key={g.constellationId} className="inspector-tree__group">
@@ -153,10 +155,11 @@ export function PlanInspector() {
                       <tbody>
                         {g.systems.map((s) => {
                           const space = hasRemainingSpace(s);
+                          const overBudget = s.consumedPower > s.availablePower || s.consumedWorkforce > s.availableWorkforce;
                           return (
-                            <tr key={s.systemId} className={`inspector__row${s.balanced ? '' : ' inspector__row--over'}`}>
+                            <tr key={s.systemId} className={`inspector__row${overBudget ? ' inspector__row--over' : ''}`}>
                               <td>
-                                <span className={`inspector__dot${s.balanced ? '' : ' inspector__dot--over'}`} />
+                                <span className={`inspector__dot${overBudget ? ' inspector__dot--over' : ''}`} />
                               </td>
                               <td>
                                 <button className="inspector__system" type="button" onClick={() => selectSystem(s.systemId)}>
