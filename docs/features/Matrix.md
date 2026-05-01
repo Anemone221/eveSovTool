@@ -1,9 +1,11 @@
 # Assignment matrix
 
 ## Purpose
+
 One-glance, plan-wide grid: every system × every upgrade. Each cell is a green dot (todo) or solid dot (installed) when the upgrade is assigned to that system in the active plan. A "Totals" row across the top counts how many systems each upgrade appears in. Designed for spotting coverage gaps and lopsided distributions across a large plan at a glance.
 
 ## Schema
+
 Reads via IPC only. Backed by `plan_scopes`, `plan_upgrades` (including `installed` column), `plan_system_status`, joined with the SDE hierarchy. See the SQL in `plans.matrix` IPC.
 
 ## IPC
@@ -22,6 +24,7 @@ Reads via IPC only. Backed by `plan_scopes`, `plan_upgrades` (including `install
 - `electron/ipc/exports.ts` — `exports.capturePng`
 
 ## Key decisions
+
 - **Column headers are rotated −45°** (bottom-left → upper-right). Every column header lives inside a single colspan'd `<th>` with absolutely-positioned rotated `<span>`s. A toggle switches to 90° (`transform: rotate(-90deg)`) — header row height adjusts accordingly (180 px → 120 px).
 - The system column is sticky on the left with the system name stacked over `<constellation> / <region>`.
 - The "Totals" row sticks at `top: 180px`. If sticking breaks, the likely cause is the `overflow: auto` scroll context — verify `border-collapse: separate` is set and the sticky parent is the scroll container, not a wrapper.
