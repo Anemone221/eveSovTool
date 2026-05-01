@@ -7,21 +7,36 @@ Plan-wide rollup of the anomalies the user's assignments would generate (Threat 
 Reads via `plans.matrix` (same IPC as the Assignment Matrix). All site computation is done client-side from the upgrade list; there is no `sites` table.
 
 ## IPC
-- `plans.matrix(planId)` — system + upgrade list per system.
+
+- `plans.matrix(planId)` — system + upgrade list per system. Extended to include per-resource usage ratios (for color-system-names formatting option).
+- `exports.capturePng(filename)` — PNG export (see Exports.md).
 - Subscribes to `plan-changed`.
 
 ## Critical files
+
 - `src/panels/SitesOverview.tsx` — totals + grid rendering.
 - `src/data/effects.ts` — `siteEffectsFor(upgradeName, sec)` and `aggregateGrants(lists)`. Encodes:
-  - **Threat Detection** lookup tables for Major / Minor × tiers 1–3 across the five sec brackets `> -0.25`, `-0.45 < s ≤ -0.25`, `-0.65 < s ≤ -0.45`, `-0.85 < s ≤ -0.65`, `s ≤ -0.85`. Tables match CCP's published non-drone-region values.
-  - **Prospecting Arrays** for the seven ores (Tritanium / Pyerite / Mexallon / Isogen / Nocxium / Zydrine / Megacyte) — tier N grants `Lvl N <Ore> Site`; tier 3 additionally grants `1× Mercoxit Anomaly`.
+  - **Threat Detection** lookup tables for Major / Minor × tiers 1–3 across the five sec brackets.
+  - **Prospecting Arrays** for the seven ores; tier 3 adds Mercoxit anomaly.
+- `src/data/upgradeSymbols.ts` — abbreviation map for upgrade labels (e.g. `'Mjr.3'`, `'Mnr.2'`).
+- `src/components/FormatBar.tsx` — shared formatting checkbox bar.
+- `electron/ipc/exports.ts` — `exports.capturePng`.
 
 ## Key decisions
-- Site grants are **not** stored in the DB; they're derived from `(upgrade name, system sec)` at render time. Cheap to compute, easy to extend.
-- Same matrix-style layout as Assignment Matrix: single colspan'd header cell with rotated column labels, sticky combined system column. No code is shared today but the CSS classes are (`.matrix__*`).
-- "Only systems with grants" filtering keeps the view focused; if you add a Threat Detection or Prospecting Array, the system pops in automatically.
+- Site grants are **not** stored in the DB; they're derived from `(upgrade name, system sec)` at render time.
+- Same matrix-style layout as Assignment Matrix: single colspan'd header cell with rotated column labels, sticky combined system column.
+- **Upgrade abbreviation labels**: displayed below the system name in each row (e.g. "Mjr.3, Mnr.2"). The abbreviation map in `upgradeSymbols.ts` maps upgrade names to short codes. These labels are condensed enough to read in the system cell without widening it.
+- **Formatting bar** (checkboxes, persisted as `sites.fmt.*` prefs):
+  - `colorSystems` — system name background colour from worst-resource usage ratio (requires `plans.summary` cross-fetch).
+  - `upgradeSymbols` — show upgrade symbols in column headers.
+  - `verticalHeaders` — toggle 45° ↔ 90° header angle (same CSS approach as Matrix).
+  - `showUpgradeLabels` — toggle the Mjr.3/Mnr.2 labels beneath system names.
+- **PNG export**: same `html2canvas` + `exports.capturePng` approach as Matrix. Opsec redaction applied before capture.
+- The formatting bar is the same `<FormatBar>` component as the Matrix, parameterised by the pref namespace.
+- "Only systems with grants" filtering keeps the view focused.
 
 ## Open questions / next steps
-- Drone-region overrides — non-drone tables are applied universally today. Need a region-class lookup (drone vs non-drone) from EVE SDE, then a parallel set of tables.
-- Per-site Wiki / lore links so hovering a site name explains what it is.
+
+- Drone-region overrides — non-drone tables applied universally today. Needs a region-class lookup from SDE.
+- Per-site hover tooltip explaining what the anomaly contains.
 - Sort options: alphabetical (default) vs by total count.

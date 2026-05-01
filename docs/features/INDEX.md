@@ -7,15 +7,20 @@ Each feature in the app has its own short doc here. The point is to give Claude 
 ## Index
 
 | Doc | Covers |
-|---|---|
+| --- | --- |
 | [Universe.md](Universe.md) | Region → constellation → system tree (`TreeExplorer`) and the scope toggle. |
 | [System.md](System.md) | `SystemDetail` panel: budget bars, status pill, planets, sites granted, plan upgrades, available upgrades. |
 | [Plans.md](Plans.md) | `PlansPanel` + plan IPC: create / rename / duplicate / delete / activate, scopes, system status. |
 | [Inspector.md](Inspector.md) | `PlanInspector`: constellation tree, mini-meters, capacity icon, remove-system. |
-| [Matrix.md](Matrix.md) | `AssignmentMatrix`: rotated headers, sticky system column, totals row. |
+| [Matrix.md](Matrix.md) | `AssignmentMatrix`: rotated headers, sticky system column, totals row, formatting bar, PNG export. |
 | [Sites.md](Sites.md) | `SitesOverview` + `src/data/effects.ts`: site grants per upgrade, sec-bracket × tier lookup. |
-| [Upgrades.md](Upgrades.md) | `UpgradeCatalog` plain reference table. |
+| [Upgrades.md](Upgrades.md) | `UpgradeCatalog`: reference table with category tree view and time-required column. |
 | [Data-Sync-System.md](Data-Sync-System.md) | Seed pipeline, SDE / CSV importers, ABI rule, refresh-data plan. |
+| [Exports.md](Exports.md) | PNG export, DNA plan sharing, opsec config, export log. |
+| [Structures.md](Structures.md) | Structure cards per system/plan: tree view, clipboard import, profitability. |
+| [Moon-Scans.md](Moon-Scans.md) | Moon survey storage: paste import, session management, ore composition. |
+| [Settings.md](Settings.md) | Color palettes and theme configuration. |
+| [Data-Management.md](Data-Management.md) | Upgrade value editor, system resource overrides, CSV re-import, data purge. |
 
 ## Doc template
 
