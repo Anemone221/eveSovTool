@@ -137,6 +137,7 @@ export interface ImportCounts {
   stars?: number;
   planets?: number;
   upgrades?: number;
+  stargates?: number;
 }
 
 export interface ImportWarning {
