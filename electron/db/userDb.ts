@@ -23,8 +23,8 @@ function resolveUserDbPath(): string {
 export function getDb(): DB {
   if (cached) return cached;
   const target = resolveUserDbPath();
+  const seed = resolveSeedPath();
   if (!existsSync(target)) {
-    const seed = resolveSeedPath();
     if (!existsSync(seed)) {
       throw new Error(`seed database not found at ${seed} — run "npm run seed" first.`);
     }
@@ -32,7 +32,7 @@ export function getDb(): DB {
     copyFileSync(seed, target);
     console.log(`[db] copied seed → ${target}`);
   }
-  cached = openDatabase(target);
+  cached = openDatabase(target, existsSync(seed) ? seed : undefined);
   return cached;
 }
 

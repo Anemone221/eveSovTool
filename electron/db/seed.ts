@@ -9,7 +9,7 @@ import {
     importStarsCsv,
     importUpgradesCsv,
 } from "../csv/importer.js";
-import { importSde } from "../sde/importer.js";
+import { importSde, importStargates } from "../sde/importer.js";
 import { openDatabase } from "./connection.js";
 
 const ROOT = process.cwd();
@@ -22,6 +22,7 @@ const SDE_FILES = [
     "mapConstellations.jsonl",
     "mapSolarSystems.jsonl",
     "mapStars.jsonl",
+    "mapStargates.jsonl",
 ];
 
 interface Args {
@@ -229,11 +230,15 @@ async function main() {
         console.log("[seed] importing sovUpgardes.csv...");
         const upgradesReport = await importUpgradesCsv(db, csvPaths.upgrades);
 
+        console.log("[seed] importing mapStargates.jsonl...");
+        const stargatesReport = await importStargates(db, sdeFiles.get("mapStargates.jsonl")!);
+
         const merged = mergeReports([
             sdeReport,
             starsReport,
             planetsReport,
             upgradesReport,
+            stargatesReport,
         ]);
 
         console.log("[seed] counts:", merged.counts);

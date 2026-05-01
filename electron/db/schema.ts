@@ -92,11 +92,23 @@ CREATE TABLE IF NOT EXISTS preferences (
 
 -- Per-plan workforce status for a system: local (default, no row), import, export, transit.
 CREATE TABLE IF NOT EXISTS plan_system_status (
-  plan_id    INTEGER NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
-  system_id  INTEGER NOT NULL REFERENCES systems(id),
-  status     TEXT    NOT NULL CHECK (status IN ('local','import','export','transit')),
+  plan_id               INTEGER NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+  system_id             INTEGER NOT NULL REFERENCES systems(id),
+  status                TEXT    NOT NULL CHECK (status IN ('local','import','export','transit')),
+  transfer_amount       INTEGER NOT NULL DEFAULT 0,
+  destination_system_id INTEGER,
+  export_all_unused     INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (plan_id, system_id)
 );
+
+-- Stargate adjacency (symmetric): populated from mapStargates.jsonl during seeding.
+CREATE TABLE IF NOT EXISTS system_adjacency (
+  system_id   INTEGER NOT NULL REFERENCES systems(id),
+  neighbor_id INTEGER NOT NULL REFERENCES systems(id),
+  PRIMARY KEY (system_id, neighbor_id)
+);
+CREATE INDEX IF NOT EXISTS idx_adjacency_system   ON system_adjacency(system_id);
+CREATE INDEX IF NOT EXISTS idx_adjacency_neighbor ON system_adjacency(neighbor_id);
 
 -- ===== Views =====
 

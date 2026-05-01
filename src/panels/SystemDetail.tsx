@@ -6,7 +6,8 @@ import type {
     SystemBalance,
     SystemDetail as SystemDetailDto,
     SystemStatus,
-    Upgrade
+    Upgrade,
+    WorkforceTransfer
 } from '@shared/index';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -33,6 +34,13 @@ export function SystemDetail() {
   const [working, setWorking] = useState<string | null>(null);
   const [starOpen, setStarOpen] = useState(true);
   const [planetsOpen, setPlanetsOpen] = useState(true);
+  const [transfers, setTransfers] = useState<WorkforceTransfer[]>([]);
+  const [exportDest, setExportDest] = useState<number | ''>('');
+  const [exportAmount, setExportAmount] = useState('');
+  const [exportAllUnused, setExportAllUnused] = useState(false);
+  const [exportWorking, setExportWorking] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [reachableImport, setReachableImport] = useState<{ systemId: number; systemName: string }[]>([]);
 
   useEffect(() => {
     void evesov.prefs.get('detail.section.star').then((v) => {
@@ -63,12 +71,20 @@ export function SystemDetail() {
   }, []);
 
   const fetchPlanState = useCallback(async (sid: number, pid: number) => {
-    const [planSnap, b] = await Promise.all([
+    const [planSnap, b, allTransfers] = await Promise.all([
       evesov.plans.get(pid),
-      evesov.plans.systemBalance(pid, sid)
+      evesov.plans.systemBalance(pid, sid),
+      evesov.plans.getWorkforceTransfers(pid)
     ]);
     setAssigned((planSnap?.upgrades ?? []).filter((u) => u.systemId === sid));
     setBalance(b);
+    setTransfers(allTransfers);
+    if (b?.status === 'export') {
+      const reachable = await evesov.plans.getReachableImportSystems(pid, sid);
+      setReachableImport(reachable);
+    } else {
+      setReachableImport([]);
+    }
   }, []);
 
   useEffect(() => {
@@ -104,6 +120,13 @@ export function SystemDetail() {
     });
     return off;
   }, [systemId, activePlanId, fetchPlanState]);
+
+  useEffect(() => {
+    setExportDest('');
+    setExportAmount('');
+    setExportAllUnused(false);
+    setExportError(null);
+  }, [systemId, activePlanId]);
 
   const upgradeMap = useMemo(() => {
     const m = new Map<string, Upgrade>();
@@ -235,6 +258,130 @@ export function SystemDetail() {
           </div>
         )}
       </section>
+
+      {activePlanId !== null && balance?.status === 'export' && (
+        <section className="detail__section">
+          <h3>Workforce Transfer — Export</h3>
+          {reachableImport.length === 0 ? (
+            <p className="detail__muted">
+              No systems with import status within 3 jumps. Set a neighbouring system to import status first.
+            </p>
+          ) : (
+            <form
+              className="transfer-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (exportDest === '') return;
+                setExportWorking(true);
+                setExportError(null);
+                void evesov.plans
+                  .setWorkforceTransfer(
+                    activePlanId,
+                    systemId,
+                    exportDest,
+                    exportAllUnused ? 0 : Number(exportAmount),
+                    exportAllUnused
+                  )
+                  .then((r) => {
+                    if (!r.ok) setExportError(r.error ?? 'Unknown error');
+                  })
+                  .finally(() => setExportWorking(false));
+              }}
+            >
+              <div className="transfer-form__row">
+                <label className="transfer-form__label">Destination</label>
+                <select
+                  className="transfer-form__select"
+                  value={exportDest}
+                  onChange={(e) => setExportDest(Number(e.target.value))}
+                >
+                  <option value="">— select system —</option>
+                  {reachableImport.map((s) => (
+                    <option key={s.systemId} value={s.systemId}>{s.systemName}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="transfer-form__row">
+                <label className="transfer-form__label">Amount</label>
+                <input
+                  type="number"
+                  className="transfer-form__input"
+                  min={1}
+                  step={1}
+                  value={exportAmount}
+                  onChange={(e) => setExportAmount(e.target.value)}
+                  disabled={exportAllUnused}
+                  placeholder="0"
+                />
+                <label className="transfer-form__check">
+                  <input
+                    type="checkbox"
+                    checked={exportAllUnused}
+                    onChange={(e) => setExportAllUnused(e.target.checked)}
+                  />
+                  Export all unused
+                </label>
+              </div>
+              {exportError && <p className="transfer-form__error">{exportError}</p>}
+              <div className="transfer-form__actions">
+                <button
+                  type="submit"
+                  className="transfer-form__submit"
+                  disabled={exportWorking || exportDest === '' || (!exportAllUnused && !Number(exportAmount))}
+                >
+                  {exportWorking ? 'Saving…' : 'Set Transfer'}
+                </button>
+                {transfers.some((t) => t.sourceSystemId === systemId) && (
+                  <button
+                    type="button"
+                    className="transfer-form__remove"
+                    onClick={() => {
+                      void evesov.plans.removeWorkforceTransfer(activePlanId, systemId);
+                    }}
+                  >
+                    Remove Transfer
+                  </button>
+                )}
+              </div>
+            </form>
+          )}
+          {(() => {
+            const t = transfers.find((tr) => tr.sourceSystemId === systemId);
+            if (!t) return null;
+            return (
+              <p className="transfer-form__summary">
+                Currently exporting{' '}
+                {t.exportAllUnused ? 'all unused workforce' : t.transferAmount.toLocaleString()}{' '}
+                to <strong>{t.destName}</strong>.
+              </p>
+            );
+          })()}
+        </section>
+      )}
+
+      {activePlanId !== null && balance?.status === 'import' && (
+        <section className="detail__section">
+          <h3>Workforce Transfer — Incoming</h3>
+          {(() => {
+            const incoming = transfers.filter((t) => t.destSystemId === systemId);
+            if (incoming.length === 0) {
+              return <p className="detail__muted">No export systems are targeting this system yet.</p>;
+            }
+            return (
+              <table className="kv">
+                <tbody>
+                  {incoming.map((t) => (
+                    <tr key={t.sourceSystemId}>
+                      <th>{t.sourceName}</th>
+                      <td>{t.exportAllUnused ? 'All unused workforce' : t.transferAmount.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            );
+          })()}
+        </section>
+      )}
 
       <div className="detail__columns">
         <div className="detail__columns-inner">

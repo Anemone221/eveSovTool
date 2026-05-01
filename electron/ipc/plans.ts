@@ -1,5 +1,6 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import { getDb } from '../db/userDb.js';
+import { findPath, reachableSystems } from './adjacency.js';
 import type {
   AssignResult,
   PlanMatrix,
@@ -9,8 +10,10 @@ import type {
   PlanScope,
   PlanSummary,
   PlanUpgradeRow,
+  SetTransferResult,
   SystemBalance,
-  SystemStatus
+  SystemStatus,
+  WorkforceTransfer
 } from '@shared/index';
 
 interface PlanDbRow {
@@ -54,6 +57,15 @@ interface RollupDbRow extends BalanceDbRow {
   region_id: number;
   region_name: string;
   security_status: number | null;
+}
+
+interface TransferDbRow {
+  source_system_id: number;
+  source_name: string;
+  dest_system_id: number;
+  dest_name: string | null;
+  transfer_amount: number;
+  export_all_unused: number;
 }
 
 const toPlanSummary = (r: PlanDbRow): PlanSummary => ({
@@ -108,10 +120,45 @@ function rollupFromRow(r: RollupDbRow): PlanRollupRow {
 const BALANCE_SQL_BY_SYSTEM = `
   SELECT
     sb.system_id,
-    sb.available_power, sb.available_workforce, sb.available_ice, sb.available_gas,
+    sb.available_power,
+    sb.available_workforce + COALESCE((
+      SELECT SUM(
+        CASE WHEN src.export_all_unused = 1
+          THEN (
+            SELECT CASE WHEN (sb2.available_workforce - COALESCE((
+              SELECT SUM(u2.workforce) FROM plan_upgrades pu2
+              JOIN upgrades u2 ON u2.name = pu2.upgrade_name
+              WHERE pu2.plan_id = @planId AND pu2.system_id = src.system_id
+            ), 0)) > 0
+            THEN (sb2.available_workforce - COALESCE((
+              SELECT SUM(u2.workforce) FROM plan_upgrades pu2
+              JOIN upgrades u2 ON u2.name = pu2.upgrade_name
+              WHERE pu2.plan_id = @planId AND pu2.system_id = src.system_id
+            ), 0))
+            ELSE 0 END
+            FROM system_budget sb2 WHERE sb2.system_id = src.system_id
+          )
+          ELSE src.transfer_amount
+        END
+      )
+      FROM plan_system_status src
+      WHERE src.plan_id = @planId
+        AND src.destination_system_id = sb.system_id
+        AND src.status = 'export'
+    ), 0) AS available_workforce,
+    sb.available_ice, sb.available_gas,
     COALESCE(pss.status, 'local')        AS status,
     COALESCE(SUM(u.power), 0)            AS consumed_power,
-    COALESCE(SUM(u.workforce), 0)        AS consumed_workforce,
+    COALESCE(SUM(u.workforce), 0)
+      + CASE
+          WHEN pss.status = 'export' AND pss.export_all_unused = 1
+            THEN CASE WHEN (sb.available_workforce - COALESCE(SUM(u.workforce), 0)) > 0
+                      THEN (sb.available_workforce - COALESCE(SUM(u.workforce), 0))
+                      ELSE 0 END
+          WHEN pss.status = 'export'
+            THEN COALESCE(pss.transfer_amount, 0)
+          ELSE 0
+        END                              AS consumed_workforce,
     COALESCE(SUM(u.superionic_ice), 0)   AS consumed_ice,
     COALESCE(SUM(u.magmatic_gas), 0)     AS consumed_gas,
     COALESCE(SUM(u.startup), 0)          AS startup_fuel
@@ -154,9 +201,44 @@ const BALANCE_SQL_FOR_PLAN = `
     s.region_id,  r.name AS region_name,
     s.security_status,
     COALESCE(pss.status, 'local')        AS status,
-    sb.available_power, sb.available_workforce, sb.available_ice, sb.available_gas,
+    sb.available_power,
+    sb.available_workforce + COALESCE((
+      SELECT SUM(
+        CASE WHEN src.export_all_unused = 1
+          THEN (
+            SELECT CASE WHEN (sb2.available_workforce - COALESCE((
+              SELECT SUM(u2.workforce) FROM plan_upgrades pu2
+              JOIN upgrades u2 ON u2.name = pu2.upgrade_name
+              WHERE pu2.plan_id = @planId AND pu2.system_id = src.system_id
+            ), 0)) > 0
+            THEN (sb2.available_workforce - COALESCE((
+              SELECT SUM(u2.workforce) FROM plan_upgrades pu2
+              JOIN upgrades u2 ON u2.name = pu2.upgrade_name
+              WHERE pu2.plan_id = @planId AND pu2.system_id = src.system_id
+            ), 0))
+            ELSE 0 END
+            FROM system_budget sb2 WHERE sb2.system_id = src.system_id
+          )
+          ELSE src.transfer_amount
+        END
+      )
+      FROM plan_system_status src
+      WHERE src.plan_id = @planId
+        AND src.destination_system_id = sb.system_id
+        AND src.status = 'export'
+    ), 0) AS available_workforce,
+    sb.available_ice, sb.available_gas,
     COALESCE(SUM(u.power), 0)            AS consumed_power,
-    COALESCE(SUM(u.workforce), 0)        AS consumed_workforce,
+    COALESCE(SUM(u.workforce), 0)
+      + CASE
+          WHEN pss.status = 'export' AND pss.export_all_unused = 1
+            THEN CASE WHEN (sb.available_workforce - COALESCE(SUM(u.workforce), 0)) > 0
+                      THEN (sb.available_workforce - COALESCE(SUM(u.workforce), 0))
+                      ELSE 0 END
+          WHEN pss.status = 'export'
+            THEN COALESCE(pss.transfer_amount, 0)
+          ELSE 0
+        END                              AS consumed_workforce,
     COALESCE(SUM(u.superionic_ice), 0)   AS consumed_ice,
     COALESCE(SUM(u.magmatic_gas), 0)     AS consumed_gas,
     COALESCE(SUM(u.startup), 0)          AS startup_fuel
@@ -333,15 +415,24 @@ export function registerPlansIpc(): void {
     'plans.setSystemStatus',
     (_, planId: number, systemId: number, status: SystemStatus): void => {
       const db = getDb();
-      if (status === 'local') {
-        db.prepare('DELETE FROM plan_system_status WHERE plan_id = ? AND system_id = ?').run(planId, systemId);
-      } else {
-        db.prepare(
-          `INSERT INTO plan_system_status (plan_id, system_id, status) VALUES (?, ?, ?)
-           ON CONFLICT(plan_id, system_id) DO UPDATE SET status = excluded.status`
-        ).run(planId, systemId, status);
-      }
-      db.prepare('UPDATE plans SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), planId);
+      db.transaction(() => {
+        if (status === 'local') {
+          db.prepare('DELETE FROM plan_system_status WHERE plan_id = ? AND system_id = ?').run(planId, systemId);
+        } else {
+          db.prepare(
+            `INSERT INTO plan_system_status (plan_id, system_id, status) VALUES (?, ?, ?)
+             ON CONFLICT(plan_id, system_id) DO UPDATE SET status = excluded.status`
+          ).run(planId, systemId, status);
+          if (status !== 'export') {
+            db.prepare(
+              `UPDATE plan_system_status
+               SET transfer_amount = 0, destination_system_id = NULL, export_all_unused = 0
+               WHERE plan_id = ? AND system_id = ?`
+            ).run(planId, systemId);
+          }
+        }
+        db.prepare('UPDATE plans SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), planId);
+      })();
       broadcastPlanChanged(planId);
     }
   );
@@ -456,4 +547,148 @@ export function registerPlansIpc(): void {
 
     return { systems };
   });
+
+  ipcMain.handle(
+    'plans.setWorkforceTransfer',
+    (
+      _,
+      planId: number,
+      sourceSystemId: number,
+      destSystemId: number,
+      amount: number,
+      exportAllUnused: boolean
+    ): SetTransferResult => {
+      const db = getDb();
+
+      const srcRow = db
+        .prepare('SELECT status FROM plan_system_status WHERE plan_id = ? AND system_id = ?')
+        .get(planId, sourceSystemId) as { status: string } | undefined;
+      if ((srcRow?.status ?? 'local') !== 'export') {
+        return { ok: false, error: 'Source system must have export status' };
+      }
+
+      const dstRow = db
+        .prepare('SELECT status FROM plan_system_status WHERE plan_id = ? AND system_id = ?')
+        .get(planId, destSystemId) as { status: string } | undefined;
+      if ((dstRow?.status ?? 'local') !== 'import') {
+        return { ok: false, error: 'Destination system must have import status' };
+      }
+
+      if (!exportAllUnused && amount <= 0) {
+        return { ok: false, error: 'Amount must be greater than 0' };
+      }
+
+      const path = findPath(db, sourceSystemId, destSystemId);
+      if (!path.found) {
+        return { ok: false, error: 'Systems are more than 3 jumps apart' };
+      }
+
+      for (const interId of path.intermediates) {
+        const interRow = db
+          .prepare('SELECT status FROM plan_system_status WHERE plan_id = ? AND system_id = ?')
+          .get(planId, interId) as { status: string } | undefined;
+        if ((interRow?.status ?? 'local') !== 'transit') {
+          const name = (
+            db.prepare('SELECT name FROM systems WHERE id = ?').get(interId) as { name: string } | undefined
+          )?.name ?? String(interId);
+          return { ok: false, error: `Intermediate system "${name}" must have transit status` };
+        }
+      }
+
+      db.transaction(() => {
+        db.prepare(
+          `INSERT INTO plan_system_status
+             (plan_id, system_id, status, transfer_amount, destination_system_id, export_all_unused)
+           VALUES (@planId, @systemId, 'export', @amount, @destId, @exportAll)
+           ON CONFLICT(plan_id, system_id) DO UPDATE SET
+             transfer_amount       = excluded.transfer_amount,
+             destination_system_id = excluded.destination_system_id,
+             export_all_unused     = excluded.export_all_unused`
+        ).run({
+          planId,
+          systemId: sourceSystemId,
+          amount: exportAllUnused ? 0 : amount,
+          destId: destSystemId,
+          exportAll: exportAllUnused ? 1 : 0,
+        });
+        db.prepare('UPDATE plans SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), planId);
+      })();
+
+      broadcastPlanChanged(planId);
+      return { ok: true };
+    }
+  );
+
+  ipcMain.handle(
+    'plans.removeWorkforceTransfer',
+    (_, planId: number, sourceSystemId: number): void => {
+      const db = getDb();
+      db.transaction(() => {
+        db.prepare(
+          `UPDATE plan_system_status
+           SET transfer_amount = 0, destination_system_id = NULL, export_all_unused = 0
+           WHERE plan_id = ? AND system_id = ?`
+        ).run(planId, sourceSystemId);
+        db.prepare('UPDATE plans SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), planId);
+      })();
+      broadcastPlanChanged(planId);
+    }
+  );
+
+  ipcMain.handle(
+    'plans.getWorkforceTransfers',
+    (_, planId: number): WorkforceTransfer[] => {
+      const rows = getDb()
+        .prepare(
+          `SELECT
+             pss.system_id          AS source_system_id,
+             src.name               AS source_name,
+             pss.destination_system_id AS dest_system_id,
+             dst.name               AS dest_name,
+             pss.transfer_amount,
+             pss.export_all_unused
+           FROM plan_system_status pss
+           JOIN systems src ON src.id = pss.system_id
+           LEFT JOIN systems dst ON dst.id = pss.destination_system_id
+           WHERE pss.plan_id = ?
+             AND pss.status = 'export'
+             AND pss.destination_system_id IS NOT NULL
+           ORDER BY src.name`
+        )
+        .all(planId) as TransferDbRow[];
+
+      return rows.map((r) => ({
+        sourceSystemId: r.source_system_id,
+        sourceName: r.source_name,
+        destSystemId: r.dest_system_id,
+        destName: r.dest_name ?? '',
+        transferAmount: r.transfer_amount,
+        exportAllUnused: r.export_all_unused === 1,
+      }));
+    }
+  );
+
+  ipcMain.handle(
+    'plans.getReachableImportSystems',
+    (_, planId: number, sourceSystemId: number): { systemId: number; systemName: string }[] => {
+      const db = getDb();
+      const reachable = reachableSystems(db, sourceSystemId, 3);
+      if (reachable.length === 0) return [];
+
+      const placeholders = reachable.map(() => '?').join(',');
+      const rows = db
+        .prepare(
+          `SELECT pss.system_id, s.name AS system_name
+           FROM plan_system_status pss
+           JOIN systems s ON s.id = pss.system_id
+           WHERE pss.plan_id = ?
+             AND pss.status = 'import'
+             AND pss.system_id IN (${placeholders})
+           ORDER BY s.name`
+        )
+        .all(planId, ...reachable) as { system_id: number; system_name: string }[];
+
+      return rows.map((r) => ({ systemId: r.system_id, systemName: r.system_name }));
+    }
+  );
 }

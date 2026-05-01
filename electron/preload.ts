@@ -36,7 +36,15 @@ const api: EveSovApi = {
     systemBalance: (planId, systemId) =>
       ipcRenderer.invoke('plans.systemBalance', planId, systemId),
     summary: (planId) => ipcRenderer.invoke('plans.summary', planId),
-    matrix: (planId) => ipcRenderer.invoke('plans.matrix', planId)
+    matrix: (planId) => ipcRenderer.invoke('plans.matrix', planId),
+    setWorkforceTransfer: (planId, sourceSystemId, destSystemId, amount, exportAllUnused) =>
+      ipcRenderer.invoke('plans.setWorkforceTransfer', planId, sourceSystemId, destSystemId, amount, exportAllUnused),
+    removeWorkforceTransfer: (planId, sourceSystemId) =>
+      ipcRenderer.invoke('plans.removeWorkforceTransfer', planId, sourceSystemId),
+    getWorkforceTransfers: (planId) =>
+      ipcRenderer.invoke('plans.getWorkforceTransfers', planId),
+    getReachableImportSystems: (planId, sourceSystemId) =>
+      ipcRenderer.invoke('plans.getReachableImportSystems', planId, sourceSystemId)
   },
   windows: {
     openPanel: (panelId, params) => ipcRenderer.invoke('windows.openPanel', panelId, params),

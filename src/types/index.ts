@@ -137,6 +137,7 @@ export interface ImportCounts {
   stars?: number;
   planets?: number;
   upgrades?: number;
+  stargates?: number;
 }
 
 export interface ImportWarning {
@@ -189,6 +190,10 @@ export interface EveSovApi {
     systemBalance: (planId: number, systemId: number) => Promise<SystemBalance | null>;
     summary: (planId: number) => Promise<PlanRollup>;
     matrix: (planId: number) => Promise<PlanMatrix>;
+    setWorkforceTransfer: (planId: number, sourceSystemId: number, destSystemId: number, amount: number, exportAllUnused: boolean) => Promise<SetTransferResult>;
+    removeWorkforceTransfer: (planId: number, sourceSystemId: number) => Promise<void>;
+    getWorkforceTransfers: (planId: number) => Promise<WorkforceTransfer[]>;
+    getReachableImportSystems: (planId: number, sourceSystemId: number) => Promise<{ systemId: number; systemName: string }[]>;
   };
   windows: {
     openPanel: (panelId: string, params?: Record<string, unknown>) => Promise<number>;
@@ -197,6 +202,20 @@ export interface EveSovApi {
   events: {
     on: (channel: 'plan-changed' | 'data-refreshed', listener: (payload: unknown) => void) => () => void;
   };
+}
+
+export interface WorkforceTransfer {
+  sourceSystemId: number;
+  sourceName: string;
+  destSystemId: number;
+  destName: string;
+  transferAmount: number;
+  exportAllUnused: boolean;
+}
+
+export interface SetTransferResult {
+  ok: boolean;
+  error?: string;
 }
 
 export interface PlanRollupRow extends SystemBalance {

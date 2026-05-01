@@ -674,3 +674,84 @@ thead .matrix__sticky-col { z-index: 3; background: var(--bg-elev); }
 .detail__section-toggle h3 { margin: 0; }
 .detail__section-toggle:hover h3 { color: var(--fg); }
 .detail__section--collapsed { margin-bottom: 8px; }
+
+/* Workforce transfer form (SystemDetail — export / import status) */
+.transfer-form { max-width: 480px; }
+.transfer-form__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.transfer-form__label {
+  width: 80px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--fg-dim);
+  text-align: right;
+}
+.transfer-form__select {
+  flex: 1;
+  min-width: 160px;
+  background: var(--bg-elev-2);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font: inherit;
+  font-size: 12px;
+}
+.transfer-form__select:focus { outline: none; border-color: var(--accent); }
+.transfer-form__input {
+  width: 100px;
+  background: var(--bg-elev-2);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.transfer-form__input:focus { outline: none; border-color: var(--accent); }
+.transfer-form__input:disabled { opacity: 0.45; cursor: not-allowed; }
+.transfer-form__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--fg-dim);
+  cursor: pointer;
+  user-select: none;
+}
+.transfer-form__check input { accent-color: var(--accent); }
+.transfer-form__error {
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: var(--danger);
+}
+.transfer-form__summary {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+.transfer-form__actions { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+.transfer-form__submit {
+  background: var(--accent);
+  color: #0c1015;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.transfer-form__submit:disabled { opacity: 0.5; cursor: not-allowed; }
+.transfer-form__remove {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+.transfer-form__remove:hover { color: var(--danger); border-color: var(--danger); }

@@ -46,6 +46,15 @@ interface StarRow {
   statistics?: { spectralClass?: string };
 }
 
+interface StargateRow {
+  _key: number;
+  solarSystemID: number;
+  destination: {
+    solarSystemID: number;
+    stargateID: number;
+  };
+}
+
 async function readJsonl<T>(path: string): Promise<Array<{ row: T; lineNo: number }>> {
   const out: Array<{ row: T; lineNo: number }> = [];
   const stream = createReadStream(path, { encoding: 'utf8' });
@@ -133,4 +142,41 @@ export async function importSde(db: DB, paths: SdePaths): Promise<{ report: Impo
     report: { counts, warnings },
     maps: { planetToSystem, starToSystem, starSpectralClass }
   };
+}
+
+export async function importStargates(db: DB, path: string): Promise<ImportReport> {
+  const rows = await readJsonl<StargateRow>(path);
+  const warnings: ImportWarning[] = [];
+
+  const knownSystems = new Set<number>(
+    (db.prepare('SELECT id FROM systems').all() as { id: number }[]).map((r) => r.id)
+  );
+
+  const insert = db.prepare(
+    'INSERT OR IGNORE INTO system_adjacency (system_id, neighbor_id) VALUES (?, ?)'
+  );
+
+  let imported = 0;
+
+  db.transaction(() => {
+    db.prepare('DELETE FROM system_adjacency').run();
+    for (const { row, lineNo } of rows) {
+      const src = row.solarSystemID;
+      const dst = row.destination.solarSystemID;
+      if (!knownSystems.has(src) || !knownSystems.has(dst)) {
+        warnings.push({
+          source: 'sde',
+          file: path,
+          row: lineNo,
+          message: `skipping stargate ${row._key}: system ${src} or ${dst} not in DB`,
+        });
+        continue;
+      }
+      insert.run(src, dst);
+      insert.run(dst, src);
+      imported++;
+    }
+  })();
+
+  return { counts: { stargates: imported }, warnings };
 }
