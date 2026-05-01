@@ -7,3 +7,4 @@ resources/seed.db
 .DS_Store
 .vscode/
 .idea/
+tsconfig.web.tsbuildinfo

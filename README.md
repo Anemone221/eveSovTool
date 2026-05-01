@@ -1,38 +1,74 @@
 # eveSovTool
 
-A local Electron desktop tool for planning EVE Online sovereignty (SOV) upgrades against any combination of regions, constellations, and systems, using CCP's current SOV mechanics.
+A local desktop tool for planning EVE Online sovereignty (sov) upgrades.
+
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL_3.0-blue.svg)](LICENSE)
+![Status: Alpha](https://img.shields.io/badge/Status-Alpha-orange.svg)
+![Platform: Windows (Electron)](https://img.shields.io/badge/Platform-Windows-lightgrey.svg)
+
+---
+
+## What it is
+
+`eveSovTool` is an Electron desktop app for capsuleers and sov-holding alliances who want to plan, balance, and compare their sov upgrades against CCP's current sov mechanics — without standing up a spreadsheet from scratch every time. Pick any combination of regions, constellations, and systems, drop upgrades onto them, and the tool checks every system's resource budget (Power, Workforce, Superionic Ice/h, Magmatic Gas/h) against what its planets and star can supply. Plans, layouts, and preferences are stored locally; the app never uploads or downloads anything.
+
+## Screenshots
+
+> *Coming once the UI settles.* The activity bar gives access to: **Universe explorer**, **System detail**, **Plans**, **Plan Inspector**, **Assignment Matrix**, **Sites overview**, and **Upgrade catalog**. Panels are dockable and remember their layout between sessions.
+
+## Features
+
+- **Browse all of New Eden** as a region → constellation → system tree, with sov-eligible space highlighted.
+- **Universe plans** — named, multiple-coexisting plans that can scope any mix of regions, constellations, and individual systems. Plans can be duplicated as `(copy)`/`(copy 2)` so you can branch a "what if" without losing your baseline.
+- **Per-system budget validation** — assign upgrades and watch the four resource bars (Power / Workforce / Superionic Ice/h / Magmatic Gas/h) fill up; tooling shows you how much capacity is left and what would push a system over budget. Producer upgrades (negative costs) actually grow your available pool. One-time startup-fuel cost is tracked separately.
+- **Plan Inspector** groups your scope by constellation (region in parens), with per-system balance rows and inline mini-meters showing constellation-level totals.
+- **Assignment Matrix** — one-glance plan-wide grid: every system × every upgrade, with rotated headers and totals row.
+- **Sites Overview** rolls up the anomalies your plan would generate (Threat Detection arrays, Prospecting Arrays — including the bonus Mercoxit anomaly on tier-3 prospectors) per system, with plan-wide totals.
+- **Workforce status** per (plan, system): mark systems as Local / Export / Import / Transit ready for the workforce-routing logic.
+- **Resource & site granting** is sec-bracket aware, matching CCP's published threat-detection tables.
 
 ## Status
 
-Phase 5 of the implementation plan. What works:
+This project is in **alpha** and currently only runs from source on Windows; there are no released binaries yet. The data layer, plans, panels, and core validation are working end-to-end. What's still on the roadmap:
 
-- Region → constellation → system tree (with filter, sov-eligible flag, click to select).
-- System detail with planets table, star info, planning resource budget bars, and assignable upgrade list.
-- Dockable panels with persisted layout (Universe, System, Plans, Plan Inspector, Upgrades).
-- Multiple named "universe plans" — create / rename / delete / activate. The active plan is remembered across launches.
-- Assign / remove upgrades on a per-system basis. Resource budget validation in real time (Power, Workforce, Superionic Ice/h, Magmatic Gas/h). Producer upgrades (negative costs) increase available capacity.
-- Plan Inspector with per-system balance rows, plan-wide rollups, and a one-time startup-fuel total.
+- Workforce route validation (export ↔ import pairs and the transit chain between them).
+- Real OS-window tear-out for popping panels into separate native windows.
+- Per-CSV in-app refresh dialog and "Generate templates" export.
+- Cross-entity search, keyboard shortcuts, drone-region site overrides, polish.
 
-Still to come: constellation/region overview panels, real OS-window tear-out, per-CSV refresh & template export, search/shortcuts polish.
+See [`we-are-building-a-sharded-lemur.md`](we-are-building-a-sharded-lemur.md) for the full rolling implementation plan.
 
 ## Source data
 
-The repo currently holds the following at the project root (importers also accept a `--data` directory):
+The app needs three sov-data CSVs and four EVE SDE crosswalk JSONLs. Place them under `outside_resources/` before seeding:
 
-- `stars.csv`, `planets.csv`, `sovUpgardes.csv` — sov-relevant resource data.
-- `mapRegions.jsonl`, `mapConstellations.jsonl`, `mapSolarSystems.jsonl`, `mapStars.jsonl` — EVE SDE crosswalk data.
-
-## Develop
-
-```bash
-npm install          # rebuilds better-sqlite3 for Electron automatically (postinstall)
-npm run seed         # produces resources/seed.db from the source files
-npm run dev          # launch the app
+```
+outside_resources/
+├── Sov_Resources/    # stars.csv · planets.csv · sovUpgardes.csv
+└── SDE_Resources/    # mapRegions.jsonl · mapConstellations.jsonl
+                      # mapSolarSystems.jsonl · mapStars.jsonl
 ```
 
-The seed script runs through Electron itself (`electron electron/seed-entry.cjs`) so it shares the same native-module ABI as the running app — no manual rebuild dance needed.
+Expected column layouts:
 
-On first launch, `seed.db` is copied to `%APPDATA%/eve-sov-tool/app.db` (Windows) and the app reads/writes there. Delete that file to reset to the bundled seed.
+- `stars.csv` — `starID, regionName, System Name, Star, power`
+- `planets.csv` — `planetID, Region Name, System Name, Planet Name, Power, Workforce, Superionic Ice / Hour, Magmatic Gas / Hour`
+- `sovUpgardes.csv` — `Upgrade, Power, Workforce, Superionic Ice, Magmatic Gas, Startup` *(spelling preserved from CCP's source)*
+- `mapRegions.jsonl`, `mapConstellations.jsonl`, `mapSolarSystems.jsonl`, `mapStars.jsonl` — from CCP's static data export.
+
+The `outside_resources/` directory is not committed to the repo. Importers also accept a `--data <dir>` flag if you prefer a different layout. Bundling these inside a release and providing an in-app refresh / template-export dialog are tracked on the roadmap.
+
+## Run from source
+
+```bash
+npm install          # also rebuilds better-sqlite3 for Electron via the postinstall hook
+npm run seed         # produces resources/seed.db from outside_resources/
+npm run dev          # launches the app
+```
+
+On first launch, `seed.db` is copied to `%APPDATA%\eve-sov-tool\app.db` and the app reads/writes there. Delete that file to reset to the bundled seed.
+
+The seed step runs through Electron itself (`electron electron/seed-entry.cjs`) so it shares the same native-module ABI as the running app — no manual rebuild dance.
 
 ## Build
 
@@ -40,12 +76,59 @@ On first launch, `seed.db` is copied to `%APPDATA%/eve-sov-tool/app.db` (Windows
 npm run build
 ```
 
-Produces the production bundle under `out/`.
+Produces the production bundle under `out/`. (Electron-builder packaging into a `.exe` installer is set up but no signed releases are published yet.)
 
 ## Scripts
 
-- `npm run dev` — start the app in development mode.
-- `npm run build` — production build.
-- `npm run seed` — rebuild `resources/seed.db` from the CSV/JSONL sources.
-- `npm run rebuild` — rebuild native modules (better-sqlite3) for Electron.
-- `npm run typecheck` — typecheck both Electron and renderer code.
+| Script | What it does |
+|---|---|
+| `npm run dev` | Start the app in development mode (Vite + Electron). |
+| `npm run build` | Production build into `out/`. |
+| `npm run seed` | Rebuild `resources/seed.db` from the CSV/JSONL sources. |
+| `npm run rebuild` | Rebuild native modules (`better-sqlite3`) for Electron. |
+| `npm run typecheck` | Typecheck both the Electron (`tsconfig.node.json`) and renderer (`tsconfig.web.json`) projects. |
+
+## Tech stack
+
+- **Electron 34** + **electron-vite 3** — desktop shell + build pipeline.
+- **React 18** + **TypeScript 5.9** — renderer.
+- **Vite 6** — dev server / bundler.
+- **better-sqlite3 12** — synchronous SQLite, embedded in the main process.
+- **dockview-react 4** — dockable panel layout.
+- **papaparse** — CSV parsing.
+- **zustand** — small renderer-only state stores.
+- **@tanstack/react-table** — used by the Upgrade catalog.
+
+## Project layout
+
+```
+eveSovTool/
+├── electron/        # main + preload (Node) — IPC, DB, importers
+├── src/             # renderer (React) — panels, shell, state, types
+├── resources/       # bundled assets (seed.db lives here after `npm run seed`)
+├── docs/features/        # per-feature design docs (see docs/features/INDEX.md)
+├── outside_resources/    # source CSVs + SDE JSONLs (not committed)
+├── electron.vite.config.ts
+├── tsconfig*.json
+└── package.json
+```
+
+## Contributing
+
+Issues and PRs are welcome. There is no CI configured yet, so please run `npm run typecheck` and `npm run build` locally before opening a PR.
+
+If you're using an AI coding assistant, point it at [`Claude.MD`](Claude.MD) — that's the working agreement (path aliases, IPC patterns, build workflow, native-module ABI rule, etc.) the existing code follows.
+
+## Privacy & data handling
+
+- Local-only. No telemetry, no analytics, no remote calls.
+- Source CSVs are supplied by the user; the app reads them off disk, writes a SQLite DB into the OS user-data folder, and that's it.
+- Don't include personal attributions (Discord usernames, real names, emails) in issues or PRs.
+
+## Disclaimer
+
+EVE Online and the EVE logo are the registered trademarks of CCP hf. All rights are reserved worldwide. This project is not affiliated with or endorsed by CCP hf.
+
+## License
+
+[GPL-3.0](LICENSE).

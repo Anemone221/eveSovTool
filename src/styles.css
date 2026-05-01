@@ -385,6 +385,70 @@ table.grid td.cost-produces { color: var(--ok); }
 .assigned__add:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
 .assigned__add:disabled { opacity: 0.5; cursor: not-allowed; }
 
+.detail__title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* Status pill (dropdown next to system name in SystemDetail) */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elev-2);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+.status-pill:hover { border-color: var(--fg-dim); }
+.status-pill__dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--fg-mute);
+  flex-shrink: 0;
+}
+.status-pill__select {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  padding-right: 4px;
+  cursor: pointer;
+}
+.status-pill__select:focus { outline: none; }
+.status-pill__select option { background: var(--bg-elev); color: var(--fg); }
+
+.status-pill--local                    { color: var(--fg-dim); }
+.status-pill--local .status-pill__dot  { background: var(--fg-mute); }
+.status-pill--export                   { color: #58a6ff; border-color: rgba(88,166,255,0.4); }
+.status-pill--export .status-pill__dot { background: #58a6ff; }
+.status-pill--import                   { color: var(--ok); border-color: rgba(63,185,80,0.4); }
+.status-pill--import .status-pill__dot { background: var(--ok); }
+.status-pill--transit                   { color: #f0b429; border-color: rgba(240,180,41,0.4); }
+.status-pill--transit .status-pill__dot { background: #f0b429; }
+
+/* Inline status tag (Inspector tree + Matrix system cell) */
+.status-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 2px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+.status-tag--export  { color: #58a6ff; background: rgba(88,166,255,0.12); }
+.status-tag--import  { color: var(--ok);  background: rgba(63,185,80,0.12); }
+.status-tag--transit { color: #f0b429;    background: rgba(240,180,41,0.14); }
+
+.matrix__system-name-row { display: flex; align-items: center; flex-wrap: wrap; }
+
 .detail__filter-row { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; flex-wrap: wrap; }
 .detail__filter { flex: 1 1 220px; max-width: 360px; }
 .detail__check {
