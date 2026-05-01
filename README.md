@@ -15,8 +15,6 @@ Phase 5 of the implementation plan. What works:
 
 Still to come: constellation/region overview panels, real OS-window tear-out, per-CSV refresh & template export, search/shortcuts polish.
 
-See `C:\Users\anemo\.claude\plans\we-are-building-a-sharded-lemur.md` for the full plan.
-
 ## Source data
 
 The repo currently holds the following at the project root (importers also accept a `--data` directory):
