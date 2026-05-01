@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
 import { evesov } from '@/api/evesov';
-import { useUi } from '@/state/uiStore';
 import { aggregateGrants, formatGrants, siteEffectsFor } from '@/data/effects';
+import { useUi } from '@/state/uiStore';
 import type {
-  PlanUpgradeRow,
-  SystemBalance,
-  SystemDetail as SystemDetailDto,
-  SystemStatus,
-  Upgrade
+    PlanUpgradeRow,
+    SystemBalance,
+    SystemDetail as SystemDetailDto,
+    SystemStatus,
+    Upgrade
 } from '@shared/index';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const STATUS_OPTIONS: SystemStatus[] = ['local', 'export', 'import', 'transit'];
 const STATUS_LABEL: Record<SystemStatus, string> = {
@@ -116,9 +116,7 @@ export function SystemDetail() {
       if (!balance) return true;
       return (
         balance.consumedPower + u.power <= balance.availablePower &&
-        balance.consumedWorkforce + u.workforce <= balance.availableWorkforce &&
-        balance.consumedIce + u.superionicIce <= balance.availableIce &&
-        balance.consumedGas + u.magmaticGas <= balance.availableGas
+        balance.consumedWorkforce + u.workforce <= balance.availableWorkforce
       );
     },
     [balance]
