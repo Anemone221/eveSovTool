@@ -1,0 +1,248 @@
+export interface Region {
+  id: number;
+  name: string;
+  factionId: number | null;
+}
+
+export interface Constellation {
+  id: number;
+  regionId: number;
+  name: string;
+  factionId: number | null;
+}
+
+export interface SystemRow {
+  id: number;
+  constellationId: number;
+  regionId: number;
+  name: string;
+  securityStatus: number | null;
+  securityClass: string | null;
+}
+
+export interface Star {
+  id: number;
+  systemId: number;
+  spectralClass: string | null;
+  description: string | null;
+  power: number;
+}
+
+export interface Planet {
+  id: number;
+  systemId: number;
+  name: string;
+  power: number;
+  workforce: number;
+  superionicIcePerHour: number;
+  magmaticGasPerHour: number;
+}
+
+export interface Upgrade {
+  name: string;
+  power: number;
+  workforce: number;
+  superionicIce: number;
+  magmaticGas: number;
+  startup: number;
+}
+
+export interface SystemDetail {
+  system: SystemRow;
+  region: Region;
+  constellation: Constellation;
+  star: Star | null;
+  planets: Planet[];
+  budget: SystemBudget;
+}
+
+export interface SystemBudget {
+  systemId: number;
+  availablePower: number;
+  availableWorkforce: number;
+  availableIce: number;
+  availableGas: number;
+  sovEligible: boolean;
+}
+
+export interface TreeNodeRegion {
+  type: 'region';
+  id: number;
+  name: string;
+  constellations: TreeNodeConstellation[];
+}
+
+export interface TreeNodeConstellation {
+  type: 'constellation';
+  id: number;
+  name: string;
+  systems: TreeNodeSystem[];
+}
+
+export interface TreeNodeSystem {
+  type: 'system';
+  id: number;
+  name: string;
+  sovEligible: boolean;
+  securityStatus: number | null;
+}
+
+export interface PlanSummary {
+  id: number;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlanScope {
+  scopeType: 'region' | 'constellation' | 'system';
+  scopeId: number;
+}
+
+export interface PlanUpgradeRow {
+  planId: number;
+  systemId: number;
+  upgradeName: string;
+  ordering: number;
+  notes: string | null;
+}
+
+export interface AssignResult {
+  ok: boolean;
+  error?: string;
+  balance?: SystemBalance;
+}
+
+export type SystemStatus = 'local' | 'import' | 'export' | 'transit';
+
+export interface SystemBalance {
+  systemId: number;
+  availablePower: number;
+  consumedPower: number;
+  availableWorkforce: number;
+  consumedWorkforce: number;
+  availableIce: number;
+  consumedIce: number;
+  availableGas: number;
+  consumedGas: number;
+  startupFuel: number;
+  balanced: boolean;
+  status: SystemStatus;
+}
+
+export interface ImportCounts {
+  regions?: number;
+  constellations?: number;
+  systems?: number;
+  stars?: number;
+  planets?: number;
+  upgrades?: number;
+}
+
+export interface ImportWarning {
+  source: 'sde' | 'csv';
+  file: string;
+  row: number;
+  message: string;
+}
+
+export interface ImportReport {
+  counts: ImportCounts;
+  warnings: ImportWarning[];
+}
+
+export type SovCsvKind = 'stars' | 'planets' | 'upgrades';
+
+export interface RefreshSovArgs {
+  kind: SovCsvKind;
+  path: string;
+}
+
+export interface EveSovApi {
+  ping: () => Promise<string>;
+  prefs: {
+    get: (key: string) => Promise<string | null>;
+    set: (key: string, value: string) => Promise<void>;
+  };
+  data: {
+    tree: () => Promise<TreeNodeRegion[]>;
+    region: (id: number) => Promise<Region | null>;
+    constellation: (id: number) => Promise<Constellation | null>;
+    system: (id: number) => Promise<SystemDetail | null>;
+    upgrades: () => Promise<Upgrade[]>;
+    upgrade: (name: string) => Promise<Upgrade | null>;
+    refreshSov: (args: RefreshSovArgs) => Promise<ImportReport>;
+    exportTemplates: (dir: string) => Promise<{ written: string[] }>;
+  };
+  plans: {
+    list: () => Promise<PlanSummary[]>;
+    get: (id: number) => Promise<{ plan: PlanSummary; scopes: PlanScope[]; upgrades: PlanUpgradeRow[] } | null>;
+    create: (name: string) => Promise<PlanSummary>;
+    rename: (id: number, name: string) => Promise<PlanSummary>;
+    duplicate: (id: number, newName: string) => Promise<PlanSummary>;
+    delete: (id: number) => Promise<void>;
+    setScopes: (planId: number, scopes: PlanScope[]) => Promise<void>;
+    assignUpgrade: (planId: number, systemId: number, upgradeName: string) => Promise<AssignResult>;
+    removeUpgrade: (planId: number, systemId: number, upgradeName: string) => Promise<void>;
+    removeSystem: (planId: number, systemId: number) => Promise<void>;
+    setSystemStatus: (planId: number, systemId: number, status: SystemStatus) => Promise<void>;
+    systemBalance: (planId: number, systemId: number) => Promise<SystemBalance | null>;
+    summary: (planId: number) => Promise<PlanRollup>;
+    matrix: (planId: number) => Promise<PlanMatrix>;
+  };
+  windows: {
+    openPanel: (panelId: string, params?: Record<string, unknown>) => Promise<number>;
+    dockBack: (windowId: number) => Promise<void>;
+  };
+  events: {
+    on: (channel: 'plan-changed' | 'data-refreshed', listener: (payload: unknown) => void) => () => void;
+  };
+}
+
+export interface PlanRollupRow extends SystemBalance {
+  systemName: string;
+  constellationId: number;
+  constellationName: string;
+  regionId: number;
+  regionName: string;
+  securityStatus: number | null;
+}
+
+export interface PlanRollup {
+  planId: number;
+  systemBalances: PlanRollupRow[];
+  unbalancedSystems: PlanRollupRow[];
+  totals: {
+    availablePower: number;
+    consumedPower: number;
+    availableWorkforce: number;
+    consumedWorkforce: number;
+    availableIce: number;
+    consumedIce: number;
+    availableGas: number;
+    consumedGas: number;
+    startupFuel: number;
+  };
+}
+
+export interface PlanMatrixSystem {
+  id: number;
+  name: string;
+  constellationId: number;
+  constellationName: string;
+  regionId: number;
+  regionName: string;
+  securityStatus: number | null;
+  status: SystemStatus;
+  upgrades: string[];
+}
+
+export interface PlanMatrix {
+  systems: PlanMatrixSystem[];
+}
+
+declare global {
+  interface Window {
+    evesov: EveSovApi;
+  }
+}
