@@ -13,6 +13,7 @@ import { PlansPanel } from '@/panels/PlansPanel';
 import { PlanInspector } from '@/panels/PlanInspector';
 import { AssignmentMatrix } from '@/panels/AssignmentMatrix';
 import { SitesOverview } from '@/panels/SitesOverview';
+import { StructuresPage } from '@/panels/StructuresPage';
 import { ActivityBar } from './ActivityBar';
 import { evesov } from '@/api/evesov';
 import { useUi } from '@/state/uiStore';
@@ -27,7 +28,8 @@ const components: Record<string, React.FunctionComponent<IDockviewPanelProps>> =
   plansPanel: () => <PlansPanel />,
   planInspector: () => <PlanInspector />,
   assignmentMatrix: () => <AssignmentMatrix />,
-  sitesOverview: () => <SitesOverview />
+  sitesOverview: () => <SitesOverview />,
+  structuresPage: () => <StructuresPage />
 };
 
 interface PanelDefinition {
@@ -44,7 +46,8 @@ const PANELS: Record<string, PanelDefinition> = {
   inspector: { id: 'inspector', componentId: 'planInspector', title: 'Plan Inspector' },
   matrix: { id: 'matrix', componentId: 'assignmentMatrix', title: 'Matrix' },
   sites: { id: 'sites', componentId: 'sitesOverview', title: 'Sites' },
-  upgrades: { id: 'upgrades', componentId: 'upgradeCatalog', title: 'Upgrades' }
+  upgrades: { id: 'upgrades', componentId: 'upgradeCatalog', title: 'Upgrades' },
+  structures: { id: 'structures', componentId: 'structuresPage', title: 'Structures' }
 };
 
 export function DockShell() {

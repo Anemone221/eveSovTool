@@ -11,7 +11,8 @@ const ITEMS: ActivityItem[] = [
   { id: 'inspector', label: 'Inspector', glyph: '◯' },
   { id: 'matrix', label: 'Matrix', glyph: '⊞' },
   { id: 'sites', label: 'Sites', glyph: '◊' },
-  { id: 'upgrades', label: 'Upgrades', glyph: '◫' }
+  { id: 'upgrades', label: 'Upgrades', glyph: '◫' },
+  { id: 'structures', label: 'Structures', glyph: '⬡' }
 ];
 
 interface ActivityBarProps {

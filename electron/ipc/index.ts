@@ -3,6 +3,7 @@ import { registerDataIpc } from './data.js';
 import { registerPrefsIpc } from './prefs.js';
 import { registerPlansIpc } from './plans.js';
 import { registerExportsIpc } from './exports.js';
+import { registerStructuresIpc } from './structures.js';
 
 export function registerIpc(): void {
   ipcMain.handle('ping', () => 'pong');
@@ -10,4 +11,5 @@ export function registerIpc(): void {
   registerPrefsIpc();
   registerPlansIpc();
   registerExportsIpc();
+  registerStructuresIpc();
 }

@@ -5,13 +5,20 @@ import { useUi } from '@/state/uiStore';
 import type {
     AlnLink,
     AlnTarget,
+    PlanStructure,
     PlanUpgradeRow,
+    StructureAddPayload,
+    StructureLocation,
+    StructureType,
     SystemBalance,
     SystemDetail as SystemDetailDto,
     SystemStatus,
     Upgrade,
     WorkforceTransfer
 } from '@shared/index';
+
+const STRUCTURE_TYPES: StructureType[] = ['Ansiblex', 'Metenox', 'Athanor', 'Tatara', 'Sotiyo', 'Other'];
+const STRUCTURE_LOCATIONS: StructureLocation[] = ['Deep', 'Planet', 'Moon', 'Gate', 'Ansiblex'];
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const STATUS_OPTIONS: SystemStatus[] = ['local', 'export', 'import', 'transit'];
@@ -52,6 +59,15 @@ export function SystemDetail() {
   const [alnWorking, setAlnWorking] = useState(false);
   const [alnError, setAlnError] = useState<string | null>(null);
   const [systemSuggestions, setSystemSuggestions] = useState<{ systemId: number; systemName: string }[]>([]);
+  const [structuresOpen, setStructuresOpen] = useState(true);
+  const [structures, setStructures] = useState<PlanStructure[]>([]);
+  const [structAddType, setStructAddType] = useState<StructureType>('Ansiblex');
+  const [structAddName, setStructAddName] = useState('');
+  const [structAddLocation, setStructAddLocation] = useState<StructureLocation | ''>('');
+  const [structAdding, setStructAdding] = useState(false);
+  const [structImporting, setStructImporting] = useState(false);
+  const [structImportText, setStructImportText] = useState('');
+  const [structImportResult, setStructImportResult] = useState<string | null>(null);
 
   useEffect(() => {
     void evesov.prefs.get('detail.section.star').then((v) => {
@@ -59,6 +75,9 @@ export function SystemDetail() {
     });
     void evesov.prefs.get('detail.section.planets').then((v) => {
       if (v !== null) setPlanetsOpen(v !== '0');
+    });
+    void evesov.prefs.get('detail.section.structures').then((v) => {
+      if (v !== null) setStructuresOpen(v !== '0');
     });
   }, []);
 
@@ -76,21 +95,30 @@ export function SystemDetail() {
       return next;
     });
   };
+  const toggleStructures = () => {
+    setStructuresOpen((prev) => {
+      const next = !prev;
+      void evesov.prefs.set('detail.section.structures', next ? '1' : '0');
+      return next;
+    });
+  };
 
   useEffect(() => {
     void evesov.data.upgrades().then(setAllUpgrades);
   }, []);
 
   const fetchPlanState = useCallback(async (sid: number, pid: number) => {
-    const [planSnap, b, allTransfers] = await Promise.all([
+    const [planSnap, b, allTransfers, structNodes] = await Promise.all([
       evesov.plans.get(pid),
       evesov.plans.systemBalance(pid, sid),
-      evesov.plans.getWorkforceTransfers(pid)
+      evesov.plans.getWorkforceTransfers(pid),
+      evesov.structures.list(pid, sid),
     ]);
     const systemUpgrades = (planSnap?.upgrades ?? []).filter((u) => u.systemId === sid);
     setAssigned(systemUpgrades);
     setBalance(b);
     setTransfers(allTransfers);
+    setStructures(structNodes[0]?.structures ?? []);
     if (b?.status === 'export') {
       const reachable = await evesov.plans.getReachableImportSystems(pid, sid);
       setReachableImport(reachable);
@@ -150,6 +178,10 @@ export function SystemDetail() {
     setAlnManual(false);
     setAlnManualName('');
     setAlnError(null);
+    setStructAdding(false);
+    setStructImporting(false);
+    setStructImportText('');
+    setStructImportResult(null);
   }, [systemId, activePlanId]);
 
   const upgradeMap = useMemo(() => {
@@ -291,6 +323,108 @@ export function SystemDetail() {
           </div>
         )}
       </section>
+
+      {activePlanId !== null && (
+        <section className={`detail__section${structuresOpen ? '' : ' detail__section--collapsed'}`}>
+          <button type="button" className="detail__section-toggle" onClick={toggleStructures} aria-expanded={structuresOpen}>
+            <span className="tree__chevron">{structuresOpen ? '▾' : '▸'}</span>
+            <h3>Structures ({structures.length})</h3>
+          </button>
+          {structuresOpen && (
+            <>
+              {structures.length > 0 && (
+                <ul className="structures__cards">
+                  {structures.map((s) => (
+                    <li key={s.id} className="structures__card">
+                      <span className="structures__card-type">{s.structureType}</span>
+                      {s.name && <span className="structures__card-name">{s.name}</span>}
+                      {s.location && <span className="structures__card-location">{s.location}</span>}
+                      <button
+                        type="button"
+                        className="structures__card-remove"
+                        title="Remove structure"
+                        onClick={() => void evesov.structures.remove(activePlanId, s.id)}
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {!structAdding && !structImporting && (
+                <div className="structures__actions">
+                  <button type="button" className="structures__btn-add" onClick={() => setStructAdding(true)}>+ Add</button>
+                  <button type="button" className="structures__btn-import" onClick={() => setStructImporting(true)}>⎘ Import</button>
+                </div>
+              )}
+              {structAdding && (
+                <form
+                  className="structures__add-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (systemId === null) return;
+                    const payload: StructureAddPayload = {
+                      structureType: structAddType,
+                      name: structAddName.trim() || undefined,
+                      location: structAddLocation || undefined,
+                    };
+                    void evesov.structures.add(activePlanId, systemId, payload).then(() => {
+                      setStructAdding(false);
+                      setStructAddName('');
+                      setStructAddLocation('');
+                    });
+                  }}
+                >
+                  <select value={structAddType} onChange={(e) => setStructAddType(e.target.value as StructureType)}>
+                    {STRUCTURE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="Name (optional)"
+                    value={structAddName}
+                    onChange={(e) => setStructAddName(e.target.value)}
+                  />
+                  <select
+                    value={structAddLocation}
+                    onChange={(e) => setStructAddLocation(e.target.value as StructureLocation | '')}
+                  >
+                    <option value="">Location (optional)</option>
+                    {STRUCTURE_LOCATIONS.map((l) => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                  <button type="submit">Save</button>
+                  <button type="button" onClick={() => setStructAdding(false)}>Cancel</button>
+                </form>
+              )}
+              {structImporting && (
+                <div className="structures__import-form">
+                  <textarea
+                    rows={4}
+                    placeholder="Paste structure names, one per line"
+                    value={structImportText}
+                    onChange={(e) => { setStructImportText(e.target.value); setStructImportResult(null); }}
+                  />
+                  <div className="structures__import-actions">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (systemId === null) return;
+                        void evesov.structures.importClipboard(activePlanId, systemId, structImportText).then(({ count }) => {
+                          setStructImportResult(`Imported ${count} structure${count !== 1 ? 's' : ''}.`);
+                          setStructImportText('');
+                        });
+                      }}
+                    >
+                      Import
+                    </button>
+                    <button type="button" onClick={() => setStructImporting(false)}>Cancel</button>
+                    {structImportResult && <span className="structures__import-result">{structImportResult}</span>}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      )}
 
       {activePlanId !== null && balance?.status === 'export' && (
         <section className="detail__section">

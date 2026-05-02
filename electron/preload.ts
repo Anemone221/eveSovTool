@@ -68,6 +68,12 @@ const api: EveSovApi = {
   exports: {
     capturePng: (filename, dataUrl) => ipcRenderer.invoke('exports.capturePng', filename, dataUrl)
   },
+  structures: {
+    list: (planId, systemId?) => ipcRenderer.invoke('structures.list', planId, systemId),
+    add: (planId, systemId, structure) => ipcRenderer.invoke('structures.add', planId, systemId, structure),
+    remove: (planId, structureId) => ipcRenderer.invoke('structures.remove', planId, structureId),
+    importClipboard: (planId, systemId, text) => ipcRenderer.invoke('structures.importClipboard', planId, systemId, text),
+  },
   events: {
     on: (channel, listener) => {
       const wrapped = (_: unknown, payload: unknown) => listener(payload);

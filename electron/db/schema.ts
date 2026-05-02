@@ -132,6 +132,21 @@ CREATE TABLE IF NOT EXISTS system_adjacency (
 CREATE INDEX IF NOT EXISTS idx_adjacency_system   ON system_adjacency(system_id);
 CREATE INDEX IF NOT EXISTS idx_adjacency_neighbor ON system_adjacency(neighbor_id);
 
+-- Upwell structures planned for deployment within a plan.
+CREATE TABLE IF NOT EXISTS plan_structures (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  plan_id        INTEGER NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+  system_id      INTEGER NOT NULL REFERENCES systems(id),
+  structure_type TEXT NOT NULL,
+  name           TEXT,
+  location       TEXT,
+  moon_id        INTEGER,
+  notes          TEXT,
+  source         TEXT NOT NULL DEFAULT 'manual'
+);
+CREATE INDEX IF NOT EXISTS idx_plan_structures_system
+  ON plan_structures(plan_id, system_id);
+
 -- ===== Views =====
 
 DROP VIEW IF EXISTS system_budget;

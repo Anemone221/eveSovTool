@@ -473,6 +473,12 @@ export function registerPlansIpc(): void {
                (SELECT MAX(ordering) + 1 FROM plan_upgrades WHERE plan_id = ? AND system_id = ?), 0))
              ON CONFLICT(plan_id, system_id, upgrade_name) DO NOTHING`
           ).run(planId, systemId, upgradeName, planId, systemId);
+          if (/Advanced Logistics Network/i.test(upgradeName)) {
+            db.prepare(
+              `INSERT OR IGNORE INTO plan_structures (plan_id, system_id, structure_type, location, source)
+               VALUES (?, ?, 'Ansiblex', 'Gate', 'upgrade')`
+            ).run(planId, systemId);
+          }
           db.prepare('UPDATE plans SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), planId);
         })();
       } catch (err) {
@@ -493,6 +499,11 @@ export function registerPlansIpc(): void {
         db.prepare(
           'DELETE FROM plan_upgrades WHERE plan_id = ? AND system_id = ? AND upgrade_name = ?'
         ).run(planId, systemId, upgradeName);
+        if (/Advanced Logistics Network/i.test(upgradeName)) {
+          db.prepare(
+            `DELETE FROM plan_structures WHERE plan_id = ? AND system_id = ? AND source = 'upgrade' AND structure_type = 'Ansiblex'`
+          ).run(planId, systemId);
+        }
         db.prepare('UPDATE plans SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), planId);
       })();
       broadcastPlanChanged(planId);
@@ -1082,6 +1093,10 @@ export function registerPlansIpc(): void {
                (SELECT MAX(ordering) + 1 FROM plan_upgrades WHERE plan_id = ? AND system_id = ?), 0))
              ON CONFLICT(plan_id, system_id, upgrade_name) DO NOTHING`
           ).run(planId, linkedSystemId, planId, linkedSystemId);
+          db.prepare(
+            `INSERT OR IGNORE INTO plan_structures (plan_id, system_id, structure_type, location, source)
+             VALUES (?, ?, 'Ansiblex', 'Gate', 'upgrade')`
+          ).run(planId, linkedSystemId);
 
           // Write the reverse link (target → source).
           db.prepare(

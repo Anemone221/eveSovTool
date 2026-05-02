@@ -165,6 +165,39 @@ export interface RefreshSovArgs {
   path: string;
 }
 
+export type StructureType = 'Ansiblex' | 'Metenox' | 'Athanor' | 'Tatara' | 'Sotiyo' | 'Other';
+export type StructureLocation = 'Deep' | 'Planet' | 'Moon' | 'Gate' | 'Ansiblex';
+export type StructureSource = 'manual' | 'clipboard' | 'upgrade';
+
+export interface PlanStructure {
+  id: number;
+  planId: number;
+  systemId: number;
+  structureType: StructureType;
+  name: string | null;
+  location: StructureLocation | null;
+  moonId: number | null;
+  notes: string | null;
+  source: StructureSource;
+}
+
+export interface StructureAddPayload {
+  structureType: StructureType;
+  name?: string;
+  location?: StructureLocation;
+  notes?: string;
+}
+
+export interface StructureNode {
+  systemId: number;
+  systemName: string;
+  constellationId: number;
+  constellationName: string;
+  regionId: number;
+  regionName: string;
+  structures: PlanStructure[];
+}
+
 export interface EveSovApi {
   ping: () => Promise<string>;
   prefs: {
@@ -220,6 +253,12 @@ export interface EveSovApi {
   };
   exports: {
     capturePng: (filename: string, dataUrl: string) => Promise<{ saved: boolean; path?: string }>;
+  };
+  structures: {
+    list: (planId: number, systemId?: number) => Promise<StructureNode[]>;
+    add: (planId: number, systemId: number, structure: StructureAddPayload) => Promise<{ id: number }>;
+    remove: (planId: number, structureId: number) => Promise<void>;
+    importClipboard: (planId: number, systemId: number, text: string) => Promise<{ count: number }>;
   };
   events: {
     on: (channel: 'plan-changed' | 'data-refreshed', listener: (payload: unknown) => void) => () => void;

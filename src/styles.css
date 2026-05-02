@@ -872,6 +872,70 @@ thead .matrix__sticky-col { z-index: 3; background: var(--bg-elev); }
 .detail__section-toggle:hover h3 { color: var(--fg); }
 .detail__section--collapsed { margin-bottom: 8px; }
 
+/* Structures panel */
+.structures { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: auto; padding: 8px 0; }
+.structures__empty { color: var(--fg-mute); padding: 12px 16px; }
+.structures__constellation { border-bottom: 1px solid var(--border); }
+.structures__constellation-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 12px;
+  background: var(--bg-elev);
+  font-size: 12px;
+  font-weight: 600;
+}
+.structures__constellation-header:hover { background: var(--bg-elev-2); }
+.structures__chevron { font-size: 10px; color: var(--fg-mute); }
+.structures__constellation-name { flex: 1; }
+.structures__region-name { color: var(--fg-mute); font-weight: 400; font-size: 11px; }
+.structures__count { color: var(--fg-dim); font-size: 11px; margin-left: 4px; }
+.structures__systems { padding: 0 0 4px; }
+.structures__system { padding: 4px 12px 2px 24px; }
+.structures__system-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.structures__system-name { flex: 1; font-size: 12px; font-weight: 500; }
+.structures__btn-add,
+.structures__btn-import { font-size: 11px; color: var(--accent); padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; }
+.structures__btn-add:hover, .structures__btn-import:hover { border-color: var(--accent); }
+.structures__cards { list-style: none; margin: 0 0 4px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.structures__card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+.structures__card-type { font-weight: 600; color: var(--accent); min-width: 64px; }
+.structures__card-name { flex: 1; color: var(--fg); }
+.structures__card-location { color: var(--fg-mute); font-size: 10px; }
+.structures__card-remove { color: var(--fg-mute); padding: 0 4px; font-size: 14px; line-height: 1; margin-left: auto; }
+.structures__card-remove:hover { color: var(--danger); }
+.structures__add-form { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 6px; }
+.structures__add-form select,
+.structures__add-form input { background: var(--bg-elev-2); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; font: inherit; font-size: 11px; }
+.structures__add-form select:focus, .structures__add-form input:focus { outline: none; border-color: var(--accent); }
+.structures__add-form button { padding: 3px 10px; font-size: 11px; border-radius: 4px; border: 1px solid var(--border); }
+.structures__add-form button[type='submit'] { background: var(--accent); color: #0c1015; font-weight: 600; border-color: var(--accent); }
+.structures__import-form { margin: 4px 0 6px; }
+.structures__import-form textarea { width: 100%; box-sizing: border-box; background: var(--bg-elev-2); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; font: inherit; font-size: 11px; resize: vertical; }
+.structures__import-form textarea:focus { outline: none; border-color: var(--accent); }
+.structures__import-actions { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.structures__import-actions button { padding: 3px 10px; font-size: 11px; border-radius: 4px; border: 1px solid var(--border); }
+.structures__import-actions button:first-child { background: var(--accent); color: #0c1015; font-weight: 600; border-color: var(--accent); }
+.structures__import-result { font-size: 11px; color: var(--ok); }
+.structures__actions { display: flex; gap: 6px; margin: 4px 0; }
+.structures__search-add { padding: 8px 12px; }
+.structures__search-add input { width: 100%; box-sizing: border-box; background: var(--bg-elev-2); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font: inherit; font-size: 12px; margin-bottom: 8px; }
+.structures__search-add input:focus { outline: none; border-color: var(--accent); }
+.structures__search-result { display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: 12px; }
+.structures__search-result span { flex: 1; }
+.structures__search-result button { font-size: 11px; color: var(--accent); padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; }
+
 /* Workforce transfer form (SystemDetail — export / import status) */
 .transfer-form { max-width: 480px; }
 .transfer-form__row {
