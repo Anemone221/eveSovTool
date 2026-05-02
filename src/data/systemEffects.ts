@@ -70,14 +70,22 @@ const UPGRADE_BADGES: Record<string, { icon: string; label: string; description:
   },
 };
 
+const UPGRADE_BADGE_ORDER: string[] = [
+  'Cynosural Navigation',
+  'Cynosural Suppression',
+  'Advanced Logistics Network'
+];
+
 export function badgesForUpgrades(upgradeNames: readonly string[]): UpgradeBadge[] {
+  const present = new Set(upgradeNames);
   const seen = new Set<string>();
   const out: UpgradeBadge[] = [];
   for (const eff of effectsForUpgrades(upgradeNames)) {
     out.push({ key: `eff:${eff.label}`, icon: eff.icon, label: eff.label, description: `${eff.label} Stability — ${eff.description}` });
     seen.add(eff.label);
   }
-  for (const name of upgradeNames) {
+  for (const name of UPGRADE_BADGE_ORDER) {
+    if (!present.has(name)) continue;
     const b = UPGRADE_BADGES[name];
     if (b && !seen.has(b.label)) {
       seen.add(b.label);

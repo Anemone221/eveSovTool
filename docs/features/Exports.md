@@ -10,7 +10,7 @@ CREATE TABLE export_log (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   plan_id       INTEGER REFERENCES plans(id) ON DELETE SET NULL,
   plan_name     TEXT    NOT NULL,
-  export_type   TEXT    NOT NULL,   -- 'png-matrix' | 'png-sites' | 'png-regionMap' | 'dna-export' | 'dna-import'
+  export_type   TEXT    NOT NULL,   -- 'png-matrix' | 'png-sites' | 'png-regionMap' | 'png-inspector' | 'dna-export' | 'dna-import'
   panel         TEXT,
   system_name   TEXT,
   filename      TEXT,
@@ -87,7 +87,7 @@ The pill (`<OpsecPill />`) is driven by the configured flags (not capture state)
 - [src/state/exportRegistry.ts](../../src/state/exportRegistry.ts) — per-panel export handlers register here on mount; the Exports page calls them for individual or bulk export.
 - [src/components/OpsecPill.tsx](../../src/components/OpsecPill.tsx), [OpsecRoot.tsx](../../src/components/OpsecRoot.tsx).
 - [src/data/opsecCapture.ts](../../src/data/opsecCapture.ts), [exportFilename.ts](../../src/data/exportFilename.ts).
-- [src/panels/AssignmentMatrix.tsx](../../src/panels/AssignmentMatrix.tsx), [SitesOverview.tsx](../../src/panels/SitesOverview.tsx), [RegionMap.tsx](../../src/panels/RegionMap.tsx) — register their export with the registry, render `<OpsecPill />`, route filenames through the shared builder.
+- [src/panels/AssignmentMatrix.tsx](../../src/panels/AssignmentMatrix.tsx), [SitesOverview.tsx](../../src/panels/SitesOverview.tsx), [RegionMap.tsx](../../src/panels/RegionMap.tsx), [PlanInspector.tsx](../../src/panels/PlanInspector.tsx) — register their export with the registry, render `<OpsecPill />`, route filenames through the shared builder.
 
 ## Key decisions
 

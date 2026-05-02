@@ -15,7 +15,8 @@ import type { ExportLogEntry } from '@shared/index';
 const PANEL_ROWS: { id: ExportablePanel; label: string; hint: string }[] = [
   { id: 'matrix', label: 'Assignment Matrix', hint: 'Per-system upgrades grid' },
   { id: 'sites', label: 'Sites Overview', hint: 'Site totals across plan' },
-  { id: 'regionMap', label: 'Region Map', hint: 'Whichever region is currently displayed' }
+  { id: 'regionMap', label: 'Region Map', hint: 'Whichever region is currently displayed' },
+  { id: 'inspector', label: 'Plan Inspector', hint: 'Plan-wide rollup grouped by constellation' }
 ];
 
 export function ExportsPage(): JSX.Element {
@@ -30,7 +31,8 @@ export function ExportsPage(): JSX.Element {
   const [selected, setSelected] = useState<Record<ExportablePanel, boolean>>({
     matrix: false,
     sites: false,
-    regionMap: false
+    regionMap: false,
+    inspector: false
   });
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<ExportLogEntry[]>([]);

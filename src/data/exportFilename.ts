@@ -1,10 +1,11 @@
-export type ExportPanel = 'matrix' | 'sites' | 'regionMap' | 'systemDetail';
+export type ExportPanel = 'matrix' | 'sites' | 'regionMap' | 'systemDetail' | 'inspector';
 
 const PANEL_LABELS: Record<ExportPanel, string> = {
   matrix: 'Matrix',
   sites: 'Sites',
   regionMap: 'RegionMap',
-  systemDetail: 'System'
+  systemDetail: 'System',
+  inspector: 'Inspector'
 };
 
 function sanitise(part: string): string {

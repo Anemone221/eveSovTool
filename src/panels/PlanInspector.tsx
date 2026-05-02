@@ -1,21 +1,34 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import html2canvas from 'html2canvas';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { evesov } from '@/api/evesov';
 import { MiniMeter } from '@/components/MiniMeter';
+import { OpsecPill } from '@/components/OpsecPill';
+import { buildExportFilename } from '@/data/exportFilename';
+import { withOpsecCapture } from '@/data/opsecCapture';
 import { badgesForUpgrades } from '@/data/systemEffects';
+import { classifyCapacity } from '@/data/upgradeFamilies';
+import { useExportRegistry } from '@/state/exportRegistry';
+import { useOpsec } from '@/state/opsecStore';
 import { useUi } from '@/state/uiStore';
 import type {
   ClearUpgradesScope,
   PlanRollup,
   PlanRollupRow,
   PlanSummary,
-  SystemBalance
+  SystemBalance,
+  Upgrade
 } from '@shared/index';
+
+interface MenuAction {
+  label: string;
+  danger?: boolean;
+  run: () => Promise<void> | void;
+}
 
 interface ContextMenuState {
   x: number;
   y: number;
-  scope: ClearUpgradesScope;
-  label: string;
+  actions: MenuAction[];
 }
 
 const SHOW_LOCAL_TAG_KEY = 'inspector.showLocalTag';
@@ -34,6 +47,9 @@ export function PlanInspector() {
   const [showLocalTag, setShowLocalTag] = useState(false);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [removingSystemId, setRemovingSystemId] = useState<number | null>(null);
+  const [upgrades, setUpgrades] = useState<Upgrade[]>([]);
+  const [capitalSystemId, setCapitalSystemId] = useState<number | null>(null);
+  const inspectorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!menu) return;
@@ -52,21 +68,24 @@ export function PlanInspector() {
   }, [menu]);
 
   const openMenu = useCallback(
-    (e: React.MouseEvent, scope: ClearUpgradesScope, label: string) => {
+    (e: React.MouseEvent, actions: MenuAction[]) => {
       e.preventDefault();
       e.stopPropagation();
-      setMenu({ x: e.clientX, y: e.clientY, scope, label });
+      setMenu({ x: e.clientX, y: e.clientY, actions });
     },
     []
   );
 
-  const runClear = useCallback(
-    async (scope: ClearUpgradesScope, label: string) => {
-      if (activePlanId === null) return;
-      if (!confirm(`Clear all upgrades for ${label}? This cannot be undone.`)) return;
-      await evesov.plans.clearUpgrades(activePlanId, scope);
-      setMenu(null);
-    },
+  const clearAction = useCallback(
+    (scope: ClearUpgradesScope, label: string): MenuAction => ({
+      label: `Clear upgrades for ${label}`,
+      danger: true,
+      run: async () => {
+        if (activePlanId === null) return;
+        if (!confirm(`Clear all upgrades for ${label}? This cannot be undone.`)) return;
+        await evesov.plans.clearUpgrades(activePlanId, scope);
+      }
+    }),
     [activePlanId]
   );
 
@@ -78,9 +97,25 @@ export function PlanInspector() {
     }
     const got = await evesov.plans.get(activePlanId);
     setPlan(got?.plan ?? null);
+    setCapitalSystemId(got?.capitalSystemIds?.[0] ?? null);
     const summary = await evesov.plans.summary(activePlanId);
     setRollup(summary);
   }, [activePlanId]);
+
+  const setCapitalAction = useCallback(
+    (systemId: number, systemName: string, isCurrentCapital: boolean): MenuAction => ({
+      label: isCurrentCapital ? `Clear capital system (${systemName})` : `Set ${systemName} as capital system`,
+      run: async () => {
+        if (activePlanId === null) return;
+        await evesov.plans.setCapital(activePlanId, systemId, !isCurrentCapital);
+      }
+    }),
+    [activePlanId]
+  );
+
+  const refreshUpgrades = useCallback(async () => {
+    setUpgrades(await evesov.data.upgrades());
+  }, []);
 
   useEffect(() => {
     void refresh();
@@ -89,6 +124,45 @@ export function PlanInspector() {
     });
     return off;
   }, [refresh]);
+
+  useEffect(() => {
+    void refreshUpgrades();
+    const off = evesov.events.on('data-refreshed', () => {
+      void refreshUpgrades();
+    });
+    return off;
+  }, [refreshUpgrades]);
+
+  const onExportPng = useCallback(async () => {
+    const el = inspectorRef.current;
+    if (!el || activePlanId === null) return;
+    const got = await evesov.plans.get(activePlanId);
+    if (!got) return;
+    const dataUrl = await withOpsecCapture(async () => {
+      const canvas = await html2canvas(el, {
+        backgroundColor: '#1a1a1a',
+        width: el.scrollWidth,
+        height: el.scrollHeight,
+        windowWidth: el.scrollWidth,
+        windowHeight: el.scrollHeight,
+        scrollX: 0,
+        scrollY: 0
+      });
+      return canvas.toDataURL('image/png');
+    });
+    const filename = buildExportFilename({ planName: got.plan.name, panel: 'inspector' });
+    await evesov.exports.capturePng(filename, dataUrl, {
+      planId: activePlanId,
+      planName: got.plan.name,
+      panel: 'inspector',
+      opsecPreset: useOpsec.getState().preset
+    });
+  }, [activePlanId]);
+
+  useEffect(() => {
+    useExportRegistry.getState().register('inspector', onExportPng);
+    return () => useExportRegistry.getState().unregister('inspector');
+  }, [onExportPng]);
 
   useEffect(() => {
     void evesov.prefs.get(SHOW_LOCAL_TAG_KEY).then((v) => setShowLocalTag(v === '1'));
@@ -158,7 +232,9 @@ export function PlanInspector() {
     <div className="inspector">
       <header
         className="inspector__header"
-        onContextMenu={(e) => openMenu(e, { kind: 'plan' }, `plan "${plan.name}"`)}
+        onContextMenu={(e) =>
+          openMenu(e, [clearAction({ kind: 'plan' }, `plan "${plan.name}"`)])
+        }
       >
         <h2>{plan.name}</h2>
         <span className="inspector__meta">
@@ -169,7 +245,12 @@ export function PlanInspector() {
           <input type="checkbox" checked={showLocalTag} onChange={toggleShowLocalTag} />
           <span>Show LOCAL</span>
         </label>
+        <OpsecPill />
+        <button type="button" className="inspector__export-btn" onClick={() => void onExportPng()}>
+          Export PNG
+        </button>
       </header>
+      <div className="inspector__capture" ref={inspectorRef}>
       <section className="inspector__section">
         <h3>Plan totals</h3>
         <table className="kv">
@@ -199,11 +280,12 @@ export function PlanInspector() {
                     className="inspector-tree__header"
                     onClick={() => toggleConstellation(g.constellationId)}
                     onContextMenu={(e) =>
-                      openMenu(
-                        e,
-                        { kind: 'constellation', id: g.constellationId },
-                        `constellation ${g.constellationName}`
-                      )
+                      openMenu(e, [
+                        clearAction(
+                          { kind: 'constellation', id: g.constellationId },
+                          `constellation ${g.constellationName}`
+                        )
+                      ])
                     }
                   >
                     <span className="tree__chevron">{isCollapsed ? '▸' : '▾'}</span>
@@ -226,6 +308,18 @@ export function PlanInspector() {
                   </button>
                   {!isCollapsed && (
                     <table className="grid inspector-tree__systems">
+                      <colgroup>
+                        <col className="col-dot" />
+                        <col className="col-system" />
+                        <col className="col-plus" />
+                        <col className="col-power" />
+                        <col className="col-workforce" />
+                        <col className="col-ice" />
+                        <col className="col-gas" />
+                        <col className="col-fuel" />
+                        <col className="col-inst" />
+                        <col className="col-remove" />
+                      </colgroup>
                       <thead>
                         <tr>
                           <th></th>
@@ -243,13 +337,28 @@ export function PlanInspector() {
                       <tbody>
                         {g.systems.map((s) => {
                           const over = isOverPowerOrWorkforce(s);
-                          const space = hasRemainingSpace(s);
+                          const flavor = classifyCapacity(
+                            s.availablePower - s.consumedPower,
+                            s.availableWorkforce - s.consumedWorkforce,
+                            upgrades,
+                            s.upgrades
+                          );
+                          const cynoConflict =
+                            s.upgrades.includes('Cynosural Navigation') &&
+                            s.upgrades.includes('Cynosural Suppression');
                           return (
                             <tr
                               key={s.systemId}
                               className={`inspector__row${over ? ' inspector__row--over' : ''}`}
                               onContextMenu={(e) =>
-                                openMenu(e, { kind: 'system', id: s.systemId }, s.systemName)
+                                openMenu(e, [
+                                  setCapitalAction(
+                                    s.systemId,
+                                    s.systemName,
+                                    capitalSystemId === s.systemId
+                                  ),
+                                  clearAction({ kind: 'system', id: s.systemId }, s.systemName)
+                                ])
                               }
                             >
                               <td>
@@ -266,15 +375,24 @@ export function PlanInspector() {
                                 >
                                   {s.systemName}
                                 </button>
-                                {badgesForUpgrades(s.upgrades).map((b) => (
-                                  <img
-                                    key={b.key}
-                                    src={b.icon}
-                                    alt={b.label}
-                                    title={b.description}
-                                    className="effect-badge__icon"
-                                  />
-                                ))}
+                                {capitalSystemId === s.systemId && (
+                                  <span
+                                    className="inspector__capital-flag"
+                                    title="Plan capital system"
+                                    aria-label="Plan capital system"
+                                  >
+                                    ⚑
+                                  </span>
+                                )}
+                                {cynoConflict && (
+                                  <span
+                                    className="inspector__warn-flag"
+                                    title="Conflict: this system has both a Cyno Beacon (Cynosural Navigation) and a Cyno Jammer (Cynosural Suppression)."
+                                    aria-label="Cyno beacon/jammer conflict"
+                                  >
+                                    ⚠
+                                  </span>
+                                )}
                                 {s.status !== 'local' && (
                                   <span className={`status-tag status-tag--${s.status}`} title={`Workforce: ${s.status}`}>
                                     {s.status}
@@ -285,10 +403,39 @@ export function PlanInspector() {
                                     local
                                   </span>
                                 )}
+                                {badgesForUpgrades(s.upgrades).map((b) => (
+                                  <img
+                                    key={b.key}
+                                    src={b.icon}
+                                    alt={b.label}
+                                    title={b.description}
+                                    className="effect-badge__icon"
+                                  />
+                                ))}
+                                {s.alnLink && (
+                                  <span
+                                    className="inspector__aln"
+                                    title={`Ansiblex link → ${s.alnLink.linkedSystemName}`}
+                                  >
+                                    →{' '}
+                                    <span className="inspector__aln-pill">
+                                      {s.alnLink.linkedSystemName}
+                                    </span>
+                                  </span>
+                                )}
                               </td>
                               <td>
-                                {space && (
-                                  <span className="inspector__space" title="Has remaining power and workforce for more upgrades">+</span>
+                                {flavor && (
+                                  <span
+                                    className={`inspector__space inspector__space--${flavor}`}
+                                    title={
+                                      flavor === 'yellow'
+                                        ? 'Only Power Monitoring, Workforce Mecha-Tooling, or Stability Generator upgrades still fit here'
+                                        : 'Has remaining space for additional upgrades'
+                                    }
+                                  >
+                                    +
+                                  </span>
                                 )}
                               </td>
                               <BalanceCells b={s} />
@@ -343,27 +490,29 @@ export function PlanInspector() {
           </div>
         )}
       </section>
+      </div>
       {menu && (
         <div
           className="context-menu"
           style={{ top: menu.y, left: menu.x }}
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <button
-            type="button"
-            className="context-menu__item"
-            onClick={() => void runClear(menu.scope, menu.label)}
-          >
-            Clear upgrades for {menu.label}
-          </button>
+          {menu.actions.map((action, i) => (
+            <button
+              key={i}
+              type="button"
+              className={`context-menu__item${action.danger ? ' context-menu__item--danger' : ''}`}
+              onClick={() => {
+                void Promise.resolve(action.run()).then(() => setMenu(null));
+              }}
+            >
+              {action.label}
+            </button>
+          ))}
         </div>
       )}
     </div>
   );
-}
-
-function hasRemainingSpace(s: SystemBalance): boolean {
-  return s.consumedPower < s.availablePower && s.consumedWorkforce < s.availableWorkforce;
 }
 
 interface ConstellationTotals {

@@ -1,9 +1,11 @@
 # Plan Inspector
 
 ## Purpose
+
 Plan-wide rollup view. Shows totals (consumed / available per resource and total startup fuel for the plan) at the top, then groups every system in the plan by **constellation** (with region in parens) as collapsible top-level rows. Inside each constellation, every system shows its per-resource balance, an Installed/Total upgrade count, workforce-status tag, system-effect badges, and the right-click "Clear upgrades" affordance.
 
 ## Schema
+
 Reads via IPC only. Underlying tables (used by the rollup query):
 
 - `system_budget` view — for `available_*`.
@@ -30,7 +32,7 @@ Reads via IPC only. Underlying tables (used by the rollup query):
 ## Key decisions
 
 - **Active-systems set** = systems explicitly/implicitly scoped ∪ systems with upgrades ∪ systems with non-local status. A system whose constellation scope is removed but which still has `plan_upgrades` rows continues to appear here — the user keeps their work.
-- **`hasRemainingSpace`** triggers when the system has remaining **power AND workforce**. Ice/gas are produced inputs, not slots to fill, so they're irrelevant to "is there room for another upgrade".
+- **Capacity badge (`+`)** uses `classifyCapacity()` from `src/data/upgradeFamilies.ts` against the full upgrade catalogue. Yellow `+` when the only upgrades whose power/workforce costs still fit are **System Effects** (Power Monitoring Division, Workforce Mecha-Tooling, Stability Generator). Green `+` when at least one Strategic / Military / Industry upgrade also still fits. No `+` when nothing fits. Ice/gas are produced inputs, not slots to fill, so they're irrelevant.
 - **Row highlight** (`inspector__row--over` / `inspector__dot--over`) fires only when over on Power or Workforce. Per-cell `cost-over` red text still fires for ice/gas, but the row state is governed solely by power/workforce.
 - **Click-to-focus**: clicking a system row calls `selectSystem(id)` and `focusPanel('system')`. If the System tab is closed, DockShell adds it back.
 - **Right-click context menu**: appears on the plan header, on each constellation header, and on each system row. Single action: "Clear upgrades for X". `confirm()` prompt before deletion — destructive and explicit.
@@ -40,8 +42,9 @@ Reads via IPC only. Underlying tables (used by the rollup query):
 - **Installed/Total column**: shows `installed/total` per system; turns green when complete (`installed === total > 0`). Editing happens in System Detail.
 - **Sort order within a constellation**: over-budget systems first, then alphabetical by name.
 
+- **Export PNG**: registers with the export registry as `'inspector'`; header has an "Export PNG" button and an `<OpsecPill />`. Capture flows through `withOpsecCapture` + `html2canvas` against the inspector root, filename built via `buildExportFilename({ panel: 'inspector' })`. Logged as `export_type = 'png-inspector'`.
+
 ## Open questions / next steps
 
 - Region-level grouping tier above constellations (useful when a plan spans many regions).
 - Workforce export/import effect on consumption — currently `transfer_amount` is not factored into balance.
-- Per-system created/modified timestamps in the rollup row (deferred).

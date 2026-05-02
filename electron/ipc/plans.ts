@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import { getDb } from '../db/userDb.js';
 import { findPath, reachableSystems } from './adjacency.js';
+import { upgradeTypeKey, upgradeTypeLabel } from '@shared/upgradeTypes';
 import type {
   AlnLink,
   AlnTarget,
@@ -113,7 +114,7 @@ function balanceFromRow(r: BalanceDbRow): SystemBalance {
   };
 }
 
-function rollupFromRow(r: RollupDbRow): PlanRollupRow {
+function rollupFromRow(r: RollupDbRow, alnLink: AlnLink | null = null): PlanRollupRow {
   return {
     ...balanceFromRow(r),
     systemName: r.system_name,
@@ -124,7 +125,8 @@ function rollupFromRow(r: RollupDbRow): PlanRollupRow {
     securityStatus: r.security_status,
     upgrades: r.upgrade_names ? r.upgrade_names.split(String.fromCharCode(31)) : [],
     installedCount: r.installed_count,
-    totalCount: r.total_count
+    totalCount: r.total_count,
+    alnLink
   };
 }
 
@@ -455,13 +457,18 @@ export function registerPlansIpc(): void {
     (_, planId: number, systemId: number, upgradeName: string): AssignResult => {
       const db = getDb();
 
-      if (/Stability Gen/i.test(upgradeName)) {
+      const newKey = upgradeTypeKey(upgradeName);
+      if (newKey) {
         const existing = db.prepare(
           `SELECT upgrade_name FROM plan_upgrades
-           WHERE plan_id = ? AND system_id = ? AND upgrade_name LIKE '%Stability Gen%'`
-        ).get(planId, systemId) as { upgrade_name: string } | undefined;
-        if (existing) {
-          return { ok: false, error: `A stability generator (${existing.upgrade_name}) is already assigned to this system. Only one is permitted.` };
+           WHERE plan_id = ? AND system_id = ?`
+        ).all(planId, systemId) as Array<{ upgrade_name: string }>;
+        const conflict = existing.find((r) => upgradeTypeKey(r.upgrade_name) === newKey);
+        if (conflict) {
+          return {
+            ok: false,
+            error: `${upgradeTypeLabel(newKey)} (${conflict.upgrade_name}) is already assigned to this system. Only one is permitted.`
+          };
         }
       }
 
@@ -720,10 +727,18 @@ export function registerPlansIpc(): void {
   );
 
   ipcMain.handle('plans.summary', (_, planId: number): PlanRollup => {
-    const rows = getDb()
+    const db = getDb();
+    const rows = db
       .prepare(BALANCE_SQL_FOR_PLAN)
       .all({ planId }) as RollupDbRow[];
-    const balances = rows.map(rollupFromRow);
+    const alnRows = db
+      .prepare('SELECT system_id, linked_system_id, linked_system_name FROM plan_aln_links WHERE plan_id = ?')
+      .all(planId) as Array<{ system_id: number; linked_system_id: number | null; linked_system_name: string }>;
+    const alnBySystem = new Map<number, AlnLink>();
+    for (const r of alnRows) {
+      alnBySystem.set(r.system_id, { linkedSystemId: r.linked_system_id, linkedSystemName: r.linked_system_name });
+    }
+    const balances = rows.map((r) => rollupFromRow(r, alnBySystem.get(r.system_id) ?? null));
     const totals = balances.reduce(
       (acc, b) => {
         acc.availablePower += b.availablePower;

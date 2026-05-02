@@ -389,6 +389,37 @@ table.grid td.cost-produces { color: var(--ok); }
 .inspector__dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
 .inspector__dot--over { background: var(--danger); }
 .inspector__system { color: var(--accent); padding: 0; text-align: left; }
+.inspector__capital-flag {
+  display: inline-block;
+  margin-left: 6px;
+  color: #f0b429;
+  font-size: 13px;
+  line-height: 1;
+}
+.inspector__warn-flag {
+  display: inline-block;
+  margin-left: 6px;
+  color: var(--danger);
+  font-size: 13px;
+  line-height: 1;
+}
+.inspector__aln {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-right: 6px;
+  font-size: 10px;
+  color: var(--fg-dim);
+}
+.inspector__aln-pill {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--fg-mute);
+  border-radius: 8px;
+  font-size: 10px;
+  color: var(--fg-dim);
+  line-height: 1.4;
+}
 .inspector__system:hover { text-decoration: underline; }
 .inspector__remove-confirm {
   display: inline-flex;
@@ -621,10 +652,25 @@ table.grid td.cost-produces { color: var(--ok); }
 .inspector-tree__counts { color: var(--fg-dim); font-size: 11px; margin-left: 8px; }
 .inspector-tree__over { color: var(--danger); }
 .inspector-tree__totals { display: inline-flex; gap: 6px; margin-left: auto; flex-shrink: 0; }
-.inspector-tree__systems { width: 100%; }
+.inspector-tree__systems { width: 100%; max-width: none; table-layout: fixed; }
 .inspector-tree__systems thead th { padding-top: 4px; }
 .inspector-tree__systems td:first-child,
 .inspector-tree__systems th:first-child { padding-left: 8px; }
+.inspector-tree__systems th, .inspector-tree__systems td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.inspector-tree__systems col.col-dot       { width: 28px; }
+.inspector-tree__systems col.col-system    { width: auto; min-width: 260px; }
+.inspector-tree__systems col.col-plus      { width: 26px; }
+.inspector-tree__systems col.col-power     { width: 110px; }
+.inspector-tree__systems col.col-workforce { width: 130px; }
+.inspector-tree__systems col.col-ice       { width: 80px; }
+.inspector-tree__systems col.col-gas       { width: 90px; }
+.inspector-tree__systems col.col-fuel      { width: 84px; }
+.inspector-tree__systems col.col-inst      { width: 64px; }
+.inspector-tree__systems col.col-remove    { width: 40px; }
 
 /* Mini meter (constellation header inline) */
 .mini-meter { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; }
@@ -644,11 +690,22 @@ table.grid td.cost-produces { color: var(--ok); }
   display: inline-block;
   width: 14px;
   text-align: center;
-  color: var(--ok);
-  opacity: 0.55;
   font-size: 13px;
   line-height: 1;
 }
+.inspector__space--green  { color: var(--ok); opacity: 0.75; }
+.inspector__space--yellow { color: #d29922; opacity: 0.85; }
+
+.inspector__export-btn {
+  padding: 4px 10px;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.inspector__export-btn:hover { background: rgba(88, 166, 255, 0.12); }
 
 /* Overview pages (matrix + sites) */
 .overview { padding: 16px 24px; height: 100%; box-sizing: border-box; overflow: auto; }

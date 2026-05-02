@@ -2,6 +2,7 @@ import { evesov } from "@/api/evesov";
 import { aggregateGrants, formatGrants, siteEffectsFor } from "@/data/effects";
 import { a0Sun } from "@/data/mapIcons";
 import { badgesForUpgrades } from "@/data/systemEffects";
+import { upgradeTypeKey } from "@shared/upgradeTypes";
 import { useUi } from "@/state/uiStore";
 import type {
     AlnLink,
@@ -249,7 +250,17 @@ export function SystemDetail() {
 
     const visibleAvailable = useMemo(() => {
         const assignedNames = new Set(assigned.map((a) => a.upgradeName));
-        let list = allUpgrades.filter((u) => !assignedNames.has(u.name));
+        const assignedTypes = new Set<string>();
+        for (const a of assigned) {
+            const k = upgradeTypeKey(a.upgradeName);
+            if (k) assignedTypes.add(k);
+        }
+        let list = allUpgrades.filter((u) => {
+            if (assignedNames.has(u.name)) return false;
+            const k = upgradeTypeKey(u.name);
+            if (k && assignedTypes.has(k)) return false;
+            return true;
+        });
         if (onlyFits) list = list.filter(wouldFit);
         if (filter.trim()) {
             const q = filter.toLowerCase();

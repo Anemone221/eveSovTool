@@ -445,6 +445,7 @@ export interface PlanRollupRow extends SystemBalance {
     upgrades: string[];
     installedCount: number;
     totalCount: number;
+    alnLink: AlnLink | null;
 }
 
 export interface PlanRollup {

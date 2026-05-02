@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type ExportablePanel = 'matrix' | 'sites' | 'regionMap';
+export type ExportablePanel = 'matrix' | 'sites' | 'regionMap' | 'inspector';
 
 export type ExportHandler = () => Promise<void>;
 
