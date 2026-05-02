@@ -27,8 +27,9 @@ Reads via IPC only. Backed by `plan_scopes`, `plan_upgrades` (including `install
 - **Column headers are rotated −45°** (bottom-left → upper-right). Every column header lives inside a single colspan'd `<th>` with absolutely-positioned rotated `<span>`s. A toggle switches to 90° (`transform: rotate(-90deg)`) — header row height adjusts accordingly (180 px → 120 px).
 - The system column is sticky on the left with the system name stacked over `<constellation> / <region>`.
 - The "Totals" row sticks at `top: 180px`. If sticking breaks, the likely cause is the `overflow: auto` scroll context — verify `border-collapse: separate` is set and the sticky parent is the scroll container, not a wrapper.
+- **Cells are clickable** with a 3-state cycle: empty → todo (○) → installed (●) → empty. Empty stays visually blank; hover background indicates clickability. Backed by existing IPC: `plans.assignUpgrade`, `plans.setUpgradeInstalled`, `plans.removeUpgrade`. The `plan-changed` subscription refreshes after each call, so the totals row updates live.
 - **Formatting bar** (checkboxes, persisted as prefs with `matrix.fmt.*` keys):
-  - `colorSystems` — system name cell background colour reflects worst-resource usage ratio across {power, workforce, ice, gas}. 3-step palette: green ≤80%, yellow 80–100%, red >100%. Driven by `usage` ratios returned inline from `plans.matrix`.
+  - `colorSystems` — renders compact Power and Workforce mini-meters under the system name (shared `MiniMeter` from `src/components/MiniMeter.tsx`, also used by `PlanInspector`). Hue tracks consumed/available (green → yellow → red, `--danger` on overflow). Replaces the previous flat heat tint; raw `consumedPower / availablePower / consumedWorkforce / availableWorkforce` are surfaced on each `PlanMatrixSystem` from `plans.matrix`.
   - `upgradeSymbols` — show compact symbols from `src/data/upgradeSymbols.ts` in column headers. Mapping is currently empty (falls back to full upgrade name); intended to be populated later.
   - `verticalHeaders` — toggle 45° ↔ 90° header angle (header row height 180 px ↔ 120 px; totals-row sticky `top` follows).
   - `hideUnused` — filter `allUpgrades` to those with `totals > 0`.
@@ -38,6 +39,5 @@ Reads via IPC only. Backed by `plan_scopes`, `plan_upgrades` (including `install
 
 ## Open questions / next steps
 
-- Cell click → open System detail scrolled to that upgrade in the Available list.
 - Drone-region column grouping or visual distinction.
 - `html2canvas` scroll capture for tables wider than the viewport — may need `scrollX`/`scrollY` options.

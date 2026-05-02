@@ -788,22 +788,53 @@ thead .matrix__sticky-col { z-index: 3; background: var(--bg-elev); }
 .matrix__col-total { color: var(--accent) !important; font-weight: 600; }
 .matrix__cell.matrix__col-total { width: 40px; min-width: 40px; }
 
-/* Vertical header variant: 90° rotation, shorter row */
+/* Vertical header variant: 90° rotation, shorter row.
+   Inherits transform-origin / bottom / left from .matrix__col-text base. */
 .matrix__headers-cell--vertical { height: 120px; }
 .matrix__headers-row--vertical { height: 120px; }
-.matrix__col-text--vertical {
-  transform: rotate(-90deg);
-  bottom: 6px;
-  left: 50%;
-  transform-origin: 0 0;
-}
+.matrix__col-text--vertical { transform: rotate(-90deg); }
 .matrix--vertical .matrix__totals-row th { top: 120px; }
 .matrix__corner--vertical { height: 120px; }
 
-/* Heat coloring on system-name cell (3-step) */
-.matrix__system-cell--heat-ok   { background: rgba(64, 160, 96, 0.18) !important; }
-.matrix__system-cell--heat-warn { background: rgba(200, 160, 64, 0.22) !important; }
-.matrix__system-cell--heat-over { background: rgba(200, 64, 64, 0.28) !important; }
+/* Power/Workforce bars stacked under the system name when 'Color systems' is on */
+.matrix__system-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+.matrix__system-bars .mini-meter { font-size: 9px; }
+.matrix__system-bars .mini-meter__track { width: 80px; }
+
+/* Clickable cell: button fills the td so the whole cell is the hit target */
+.matrix__cell--clickable { padding: 0; }
+.matrix__cell-btn {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 22px;
+  padding: 3px 4px;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+.matrix__cell-btn:hover { background: rgba(255, 255, 255, 0.08); }
+.matrix__cell--on .matrix__cell-btn { color: var(--ok); font-size: 13px; }
+
+/* Export PNG pill */
+.matrix__export-btn {
+  border-radius: 999px;
+  padding: 4px 14px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--fg);
+  font-size: 11px;
+  cursor: pointer;
+}
+.matrix__export-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 /* Format bar (shared) */
 .format-bar {

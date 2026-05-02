@@ -2,6 +2,7 @@ import html2canvas from 'html2canvas';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { evesov } from '@/api/evesov';
 import { FormatBar } from '@/components/FormatBar';
+import { MiniMeter } from '@/components/MiniMeter';
 import { upgradeSymbols } from '@/data/upgradeSymbols';
 import { useUi } from '@/state/uiStore';
 import type { PlanMatrix, Upgrade } from '@shared/index';
@@ -18,12 +19,6 @@ const FMT_LABELS: Record<FmtKey, string> = {
 };
 
 const FMT_PREF_PREFIX = 'matrix.fmt.';
-
-function heatClass(ratio: number): string {
-  if (ratio > 1) return 'matrix__system-cell--heat-over';
-  if (ratio >= 0.8) return 'matrix__system-cell--heat-warn';
-  return 'matrix__system-cell--heat-ok';
-}
 
 export function AssignmentMatrix() {
   const activePlanId = useUi((s) => s.activePlanId);
@@ -92,6 +87,20 @@ export function AssignmentMatrix() {
     return all.filter((n) => (totals.get(n) ?? 0) > 0);
   }, [allUpgrades, fmt.hideUnused, totals]);
 
+  const onCellClick = useCallback(
+    async (systemId: number, upgradeName: string, has: boolean, installed: boolean) => {
+      if (activePlanId === null) return;
+      if (!has) {
+        await evesov.plans.assignUpgrade(activePlanId, systemId, upgradeName);
+      } else if (!installed) {
+        await evesov.plans.setUpgradeInstalled(activePlanId, systemId, upgradeName, true);
+      } else {
+        await evesov.plans.removeUpgrade(activePlanId, systemId, upgradeName);
+      }
+    },
+    [activePlanId]
+  );
+
   const onExportPng = useCallback(async () => {
     if (!matrixRef.current) return;
     const canvas = await html2canvas(matrixRef.current, { backgroundColor: '#1a1a1a' });
@@ -124,7 +133,7 @@ export function AssignmentMatrix() {
       </header>
       <FormatBar keys={FMT_KEYS} labels={FMT_LABELS} values={fmt} onChange={onFmtChange} />
       <div className="format-bar__actions">
-        <button type="button" onClick={onExportPng}>Export PNG</button>
+        <button type="button" className="matrix__export-btn" onClick={onExportPng}>Export PNG</button>
       </div>
       <div className="matrix__scroll" ref={matrixRef}>
         <table className={tableClass}>
@@ -159,11 +168,10 @@ export function AssignmentMatrix() {
           <tbody>
             {matrix.systems.map((s) => {
               const installedMap = new Map(s.upgrades.map((u) => [u.name, u.installed]));
-              const worst = Math.max(s.usage.power, s.usage.workforce, s.usage.ice, s.usage.gas);
-              const heat = fmt.colorSystems ? ` ${heatClass(worst)}` : '';
+              const showBars = fmt.colorSystems;
               return (
                 <tr key={s.id}>
-                  <td className={`matrix__sticky-col matrix__system-cell${heat}`}>
+                  <td className="matrix__sticky-col matrix__system-cell">
                     <div className="matrix__system-name-row">
                       <button className="inspector__system" onClick={() => selectSystem(s.id)} type="button">
                         {s.name}
@@ -178,6 +186,12 @@ export function AssignmentMatrix() {
                       {s.constellationName}
                       <span className="matrix__region"> / {s.regionName}</span>
                     </div>
+                    {showBars && (
+                      <div className="matrix__system-bars">
+                        <MiniMeter label="P" consumed={s.consumedPower} available={s.availablePower} />
+                        <MiniMeter label="W" consumed={s.consumedWorkforce} available={s.availableWorkforce} />
+                      </div>
+                    )}
                   </td>
                   {columns.map((c) => {
                     const has = installedMap.has(c);
@@ -186,9 +200,21 @@ export function AssignmentMatrix() {
                     if (has) {
                       glyph = fmt.showInstalled ? (installed ? '●' : '○') : '●';
                     }
+                    const title = !has
+                      ? `Click to add ${c}`
+                      : installed
+                        ? `${c} (installed) — click to remove`
+                        : `${c} (todo) — click to mark installed`;
                     return (
-                      <td key={c} className={`matrix__cell${has ? ' matrix__cell--on' : ''}`}>
-                        {glyph}
+                      <td key={c} className={`matrix__cell matrix__cell--clickable${has ? ' matrix__cell--on' : ''}`}>
+                        <button
+                          type="button"
+                          className="matrix__cell-btn"
+                          title={title}
+                          onClick={() => void onCellClick(s.id, c, has, installed)}
+                        >
+                          {glyph || ' '}
+                        </button>
                       </td>
                     );
                   })}

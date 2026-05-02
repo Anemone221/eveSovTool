@@ -288,6 +288,10 @@ export interface PlanMatrixSystem {
   status: SystemStatus;
   upgrades: PlanMatrixUpgrade[];
   usage: PlanMatrixUsage;
+  consumedPower: number;
+  availablePower: number;
+  consumedWorkforce: number;
+  availableWorkforce: number;
 }
 
 export interface PlanMatrix {

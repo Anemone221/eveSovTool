@@ -781,6 +781,10 @@ export function registerPlansIpc(): void {
 
     const balanceRows = db.prepare(BALANCE_SQL_FOR_PLAN).all({ planId }) as RollupDbRow[];
     const usageBySystem = new Map<number, { power: number; workforce: number; ice: number; gas: number }>();
+    const rawBySystem = new Map<
+      number,
+      { consumedPower: number; availablePower: number; consumedWorkforce: number; availableWorkforce: number }
+    >();
     for (const b of balanceRows) {
       const ratio = (consumed: number, available: number) =>
         available > 0 ? consumed / available : consumed > 0 ? Infinity : 0;
@@ -790,20 +794,33 @@ export function registerPlansIpc(): void {
         ice: ratio(b.consumed_ice, b.available_ice),
         gas: ratio(b.consumed_gas, b.available_gas)
       });
+      rawBySystem.set(b.system_id, {
+        consumedPower: b.consumed_power,
+        availablePower: b.available_power,
+        consumedWorkforce: b.consumed_workforce,
+        availableWorkforce: b.available_workforce
+      });
     }
 
-    const systems: PlanMatrixSystem[] = sysRows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      constellationId: r.constellation_id,
-      constellationName: r.constellation_name,
-      regionId: r.region_id,
-      regionName: r.region_name,
-      securityStatus: r.security_status,
-      status: r.status,
-      upgrades: upgradesBySystem.get(r.id) ?? [],
-      usage: usageBySystem.get(r.id) ?? { power: 0, workforce: 0, ice: 0, gas: 0 }
-    }));
+    const systems: PlanMatrixSystem[] = sysRows.map((r) => {
+      const raw = rawBySystem.get(r.id);
+      return {
+        id: r.id,
+        name: r.name,
+        constellationId: r.constellation_id,
+        constellationName: r.constellation_name,
+        regionId: r.region_id,
+        regionName: r.region_name,
+        securityStatus: r.security_status,
+        status: r.status,
+        upgrades: upgradesBySystem.get(r.id) ?? [],
+        usage: usageBySystem.get(r.id) ?? { power: 0, workforce: 0, ice: 0, gas: 0 },
+        consumedPower: raw?.consumedPower ?? 0,
+        availablePower: raw?.availablePower ?? 0,
+        consumedWorkforce: raw?.consumedWorkforce ?? 0,
+        availableWorkforce: raw?.availableWorkforce ?? 0
+      };
+    });
 
     return { systems };
   });
