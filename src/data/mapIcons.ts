@@ -18,6 +18,7 @@ import effectElectric from '@/assets/map-icons/systemEffects/Electric.png?inline
 import effectExotic from '@/assets/map-icons/systemEffects/Exotic.png?inline';
 import effectGamma from '@/assets/map-icons/systemEffects/Gamma.png?inline';
 import effectPlasma from '@/assets/map-icons/systemEffects/Plasma.png?inline';
+import a0Sun from '@/assets/map-icons/systemEffects/A0_Sun.png?inline';
 
 export const STRUCTURE_ICONS: Record<string, string> = {
   Keepstar: citadelXL,
@@ -49,4 +50,5 @@ export {
   cynoJammer,
   jumpPortal,
   relicSite,
+  a0Sun,
 };

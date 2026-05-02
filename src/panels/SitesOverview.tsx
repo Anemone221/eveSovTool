@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { evesov } from '@/api/evesov';
 import { useUi } from '@/state/uiStore';
 import { siteEffectsFor } from '@/data/effects';
+import { badgesForUpgrades } from '@/data/systemEffects';
 import type { PlanMatrix } from '@shared/index';
 
 interface SystemRow {
@@ -11,6 +12,7 @@ interface SystemRow {
   constellationName: string;
   regionName: string;
   sites: Map<string, number>;
+  upgradeNames: string[];
 }
 
 export function SitesOverview() {
@@ -78,7 +80,8 @@ export function SitesOverview() {
           name: s.name,
           constellationName: s.constellationName,
           regionName: s.regionName,
-          sites
+          sites,
+          upgradeNames: s.upgrades.map((u) => u.name)
         };
       })
       .filter((r) => r.sites.size > 0);
@@ -158,6 +161,15 @@ export function SitesOverview() {
                       <button className="inspector__system" onClick={() => selectSystem(r.id)} type="button">
                         {r.name}
                       </button>
+                      {badgesForUpgrades(r.upgradeNames).map((b) => (
+                        <img
+                          key={b.key}
+                          src={b.icon}
+                          alt={b.label}
+                          title={b.description}
+                          className="effect-badge__icon"
+                        />
+                      ))}
                       <div className="matrix__system-meta">
                         {r.constellationName}
                         <span className="matrix__region"> / {r.regionName}</span>

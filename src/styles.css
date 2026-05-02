@@ -554,19 +554,15 @@ table.grid td.cost-produces { color: var(--ok); }
 }
 .context-menu__item:hover { background: var(--bg-elev-3, rgba(255,255,255,0.06)); }
 
-.effect-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+.effect-badge__icon {
+  width: 18px;
+  height: 18px;
   margin-left: 6px;
-  padding: 1px 6px;
-  border-radius: 3px;
-  background: rgba(168, 122, 255, 0.14);
-  color: #c8a4ff;
-  font-size: 11px;
+  vertical-align: middle;
+  object-fit: contain;
   cursor: help;
 }
-.effect-badge--lg { font-size: 12px; padding: 2px 8px; }
+.effect-badge__icon--lg { width: 24px; height: 24px; }
 
 .inspector__installed { color: var(--fg-dim); font-variant-numeric: tabular-nums; }
 .inspector__installed--complete { color: var(--ok); }
