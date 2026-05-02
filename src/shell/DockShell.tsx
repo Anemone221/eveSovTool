@@ -15,9 +15,11 @@ import { AssignmentMatrix } from '@/panels/AssignmentMatrix';
 import { SitesOverview } from '@/panels/SitesOverview';
 import { StructuresPage } from '@/panels/StructuresPage';
 import { RegionMap } from '@/panels/RegionMap';
+import { ExportsPage } from '@/panels/ExportsPage';
 import { ActivityBar } from './ActivityBar';
 import { evesov } from '@/api/evesov';
 import { useUi } from '@/state/uiStore';
+import { useOpsec } from '@/state/opsecStore';
 
 const LAYOUT_KEY = 'dock.layout.v1';
 const ACTIVE_KEY = 'dock.active.v1';
@@ -31,7 +33,8 @@ const components: Record<string, React.FunctionComponent<IDockviewPanelProps>> =
   assignmentMatrix: () => <AssignmentMatrix />,
   sitesOverview: () => <SitesOverview />,
   structuresPage: () => <StructuresPage />,
-  regionMap: () => <RegionMap />
+  regionMap: () => <RegionMap />,
+  exportsPage: () => <ExportsPage />
 };
 
 interface PanelDefinition {
@@ -50,7 +53,8 @@ const PANELS: Record<string, PanelDefinition> = {
   sites: { id: 'sites', componentId: 'sitesOverview', title: 'Sites' },
   upgrades: { id: 'upgrades', componentId: 'upgradeCatalog', title: 'Upgrades' },
   structures: { id: 'structures', componentId: 'structuresPage', title: 'Structures' },
-  regionMap: { id: 'regionMap', componentId: 'regionMap', title: 'Region Map' }
+  regionMap: { id: 'regionMap', componentId: 'regionMap', title: 'Region Map' },
+  exports: { id: 'exports', componentId: 'exportsPage', title: 'Exports' }
 };
 
 export function DockShell() {
@@ -60,9 +64,12 @@ export function DockShell() {
   const hydrateActivePlan = useUi((s) => s.hydrateActivePlan);
   const registerFocusPanel = useUi((s) => s.registerFocusPanel);
 
+  const hydrateOpsec = useOpsec((s) => s.hydrate);
+
   useEffect(() => {
     void hydrateActivePlan();
-  }, [hydrateActivePlan]);
+    void hydrateOpsec();
+  }, [hydrateActivePlan, hydrateOpsec]);
 
   const addOrFocus = useCallback((panelId: string) => {
     const api = apiRef.current;

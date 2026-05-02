@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import html2canvas from 'html2canvas';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { evesov } from '@/api/evesov';
 import { useUi } from '@/state/uiStore';
+import { OpsecPill } from '@/components/OpsecPill';
+import { useOpsec } from '@/state/opsecStore';
+import { useExportRegistry } from '@/state/exportRegistry';
+import { buildExportFilename } from '@/data/exportFilename';
+import { withOpsecCapture } from '@/data/opsecCapture';
 import { siteEffectsFor } from '@/data/effects';
+import { badgesForUpgrades } from '@/data/systemEffects';
 import type { PlanMatrix } from '@shared/index';
 
 interface SystemRow {
@@ -10,12 +17,45 @@ interface SystemRow {
   constellationName: string;
   regionName: string;
   sites: Map<string, number>;
+  upgradeNames: string[];
 }
 
 export function SitesOverview() {
   const activePlanId = useUi((s) => s.activePlanId);
   const selectSystem = useUi((s) => s.selectSystem);
   const [matrix, setMatrix] = useState<PlanMatrix | null>(null);
+  const matrixRef = useRef<HTMLDivElement>(null);
+
+  const onExportPng = useCallback(async () => {
+    const el = matrixRef.current;
+    if (!el || activePlanId === null) return;
+    const got = await evesov.plans.get(activePlanId);
+    if (!got) return;
+    const dataUrl = await withOpsecCapture(async () => {
+      const canvas = await html2canvas(el, {
+        backgroundColor: '#1a1a1a',
+        width: el.scrollWidth,
+        height: el.scrollHeight,
+        windowWidth: el.scrollWidth,
+        windowHeight: el.scrollHeight,
+        scrollX: 0,
+        scrollY: 0
+      });
+      return canvas.toDataURL('image/png');
+    });
+    const filename = buildExportFilename({ planName: got.plan.name, panel: 'sites' });
+    await evesov.exports.capturePng(filename, dataUrl, {
+      planId: activePlanId,
+      planName: got.plan.name,
+      panel: 'sites',
+      opsecPreset: useOpsec.getState().preset
+    });
+  }, [activePlanId]);
+
+  useEffect(() => {
+    useExportRegistry.getState().register('sites', onExportPng);
+    return () => useExportRegistry.getState().unregister('sites');
+  }, [onExportPng]);
 
   const refresh = useCallback(async () => {
     if (activePlanId === null) {
@@ -59,7 +99,8 @@ export function SitesOverview() {
           name: s.name,
           constellationName: s.constellationName,
           regionName: s.regionName,
-          sites
+          sites,
+          upgradeNames: s.upgrades.map((u) => u.name)
         };
       })
       .filter((r) => r.sites.size > 0);
@@ -93,7 +134,12 @@ export function SitesOverview() {
           {rows.length} systems · {columns.length} site types · {grandTotal.toLocaleString()} total sites
         </span>
       </header>
+      <div className="format-bar__actions">
+        <OpsecPill />
+        <button type="button" className="matrix__export-btn" onClick={onExportPng}>Export PNG</button>
+      </div>
 
+      <div ref={matrixRef}>
       <section className="inspector__section">
         <h3>Sites totals across plan</h3>
         <ul className="grants">
@@ -135,6 +181,15 @@ export function SitesOverview() {
                       <button className="inspector__system" onClick={() => selectSystem(r.id)} type="button">
                         {r.name}
                       </button>
+                      {badgesForUpgrades(r.upgradeNames).map((b) => (
+                        <img
+                          key={b.key}
+                          src={b.icon}
+                          alt={b.label}
+                          title={b.description}
+                          className="effect-badge__icon"
+                        />
+                      ))}
                       <div className="matrix__system-meta">
                         {r.constellationName}
                         <span className="matrix__region"> / {r.regionName}</span>
@@ -156,6 +211,7 @@ export function SitesOverview() {
           </table>
         </div>
       </section>
+      </div>
     </div>
   );
 }

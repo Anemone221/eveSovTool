@@ -3,6 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { evesov } from '@/api/evesov';
 import { FormatBar } from '@/components/FormatBar';
 import { MiniMeter } from '@/components/MiniMeter';
+import { OpsecPill } from '@/components/OpsecPill';
+import { useOpsec, useEffectiveOpsec } from '@/state/opsecStore';
+import { useExportRegistry } from '@/state/exportRegistry';
+import { buildExportFilename } from '@/data/exportFilename';
+import { withOpsecCapture } from '@/data/opsecCapture';
 import { upgradeSymbols } from '@/data/upgradeSymbols';
 import { useUi } from '@/state/uiStore';
 import type { AlnTarget, PlanMatrix, Upgrade } from '@shared/index';
@@ -33,6 +38,14 @@ export function AssignmentMatrix() {
     showInstalled: false
   });
   const matrixRef = useRef<HTMLDivElement>(null);
+  const opsec = useEffectiveOpsec();
+  const systemNameById = useMemo(() => {
+    const map = new Map<number, string>();
+    if (matrix) matrix.systems.forEach((s, i) => map.set(s.id, `System-${i + 1}`));
+    return map;
+  }, [matrix]);
+  const renderSystemName = (id: number, real: string) =>
+    opsec.hideSystemNames ? (systemNameById.get(id) ?? real) : real;
   const [alnPending, setAlnPending] = useState<{ systemId: number; systemName: string } | null>(null);
   const [alnTargets, setAlnTargets] = useState<AlnTarget[]>([]);
   const [alnDest, setAlnDest] = useState<number | ''>('');
@@ -115,12 +128,35 @@ export function AssignmentMatrix() {
   );
 
   const onExportPng = useCallback(async () => {
-    if (!matrixRef.current) return;
-    const canvas = await html2canvas(matrixRef.current, { backgroundColor: '#1a1a1a' });
-    const dataUrl = canvas.toDataURL('image/png');
-    const filename = `matrix-${activePlanId ?? 'plan'}-${Date.now()}.png`;
-    await evesov.exports.capturePng(filename, dataUrl);
+    const el = matrixRef.current;
+    if (!el || activePlanId === null) return;
+    const got = await evesov.plans.get(activePlanId);
+    if (!got) return;
+    const dataUrl = await withOpsecCapture(async () => {
+      const canvas = await html2canvas(el, {
+        backgroundColor: '#1a1a1a',
+        width: el.scrollWidth,
+        height: el.scrollHeight,
+        windowWidth: el.scrollWidth,
+        windowHeight: el.scrollHeight,
+        scrollX: 0,
+        scrollY: 0
+      });
+      return canvas.toDataURL('image/png');
+    });
+    const filename = buildExportFilename({ planName: got.plan.name, panel: 'matrix' });
+    await evesov.exports.capturePng(filename, dataUrl, {
+      planId: activePlanId,
+      planName: got.plan.name,
+      panel: 'matrix',
+      opsecPreset: useOpsec.getState().preset
+    });
   }, [activePlanId]);
+
+  useEffect(() => {
+    useExportRegistry.getState().register('matrix', onExportPng);
+    return () => useExportRegistry.getState().unregister('matrix');
+  }, [onExportPng]);
 
   if (activePlanId === null) {
     return <div className="overview overview--empty">Activate a plan to see its assignment matrix.</div>;
@@ -146,6 +182,7 @@ export function AssignmentMatrix() {
       </header>
       <FormatBar keys={FMT_KEYS} labels={FMT_LABELS} values={fmt} onChange={onFmtChange} />
       <div className="format-bar__actions">
+        <OpsecPill />
         <button type="button" className="matrix__export-btn" onClick={onExportPng}>Export PNG</button>
       </div>
       <div className="matrix__scroll" ref={matrixRef}>
@@ -274,7 +311,7 @@ export function AssignmentMatrix() {
                   <td className="matrix__sticky-col matrix__system-cell">
                     <div className="matrix__system-name-row">
                       <button className="inspector__system" onClick={() => selectSystem(s.id)} type="button">
-                        {s.name}
+                        {renderSystemName(s.id, s.name)}
                       </button>
                       {s.status !== 'local' && (
                         <span className={`status-tag status-tag--${s.status}`} title={`Workforce: ${s.status}`}>
@@ -282,10 +319,12 @@ export function AssignmentMatrix() {
                         </span>
                       )}
                     </div>
-                    <div className="matrix__system-meta">
-                      {s.constellationName}
-                      <span className="matrix__region"> / {s.regionName}</span>
-                    </div>
+                    {!opsec.hideSystemNames && (
+                      <div className="matrix__system-meta">
+                        {s.constellationName}
+                        <span className="matrix__region"> / {s.regionName}</span>
+                      </div>
+                    )}
                     {showBars && (
                       <div className="matrix__system-bars">
                         <MiniMeter label="P" consumed={s.consumedPower} available={s.availablePower} />

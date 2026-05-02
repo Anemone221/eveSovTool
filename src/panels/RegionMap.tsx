@@ -1,4 +1,13 @@
-import { evesov } from "@/api/evesov";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import html2canvas from 'html2canvas';
+import { evesov } from '@/api/evesov';
+import { useUi } from '@/state/uiStore';
+import { OpsecPill } from '@/components/OpsecPill';
+import { useOpsec } from '@/state/opsecStore';
+import { useExportRegistry } from '@/state/exportRegistry';
+import { buildExportFilename } from '@/data/exportFilename';
+import { withOpsecCapture } from '@/data/opsecCapture';
+import type { MapOverlayData, MapAuraData, TreeNodeRegion } from '@shared/index';
 import {
     MINING_ICONS,
     STABILITY_ICONS,
@@ -421,55 +430,110 @@ export function RegionMap() {
             setExporting(false);
         }
     };
+  }, [overlay, auraData, positions]);
 
-    const regionName =
-        planRegions.find((r) => r.id === selectedRegionId)?.name ?? "";
+  // Fetch overlay + aura data when plan or region changes
+  const fetchOverlayData = useCallback(() => {
+    if (activePlanId === null || selectedRegionId === null) {
+      setOverlay(null);
+      setAuraData(null);
+      return;
+    }
+    evesov.map.overlayData(activePlanId, selectedRegionId).then(setOverlay).catch(console.error);
+    evesov.map.auraData(activePlanId, selectedRegionId).then(setAuraData).catch(console.error);
+  }, [activePlanId, selectedRegionId]);
 
-    return (
-        <div className="region-map">
-            <div className="region-map__controls">
-                <select
-                    className="region-map__region-select"
-                    value={selectedRegionId ?? ""}
-                    onChange={handleRegionChange}
-                >
-                    <option value="" disabled>
-                        Select region…
-                    </option>
-                    {planRegions.map((r) => (
-                        <option key={r.id} value={r.id}>
-                            {r.name}
-                        </option>
-                    ))}
-                </select>
-                <button
-                    type="button"
-                    className="region-map__export-btn"
-                    onClick={handleExport}
-                    disabled={exporting || !svgContent}
-                >
-                    {exporting ? "Exporting…" : "Export PNG"}
-                </button>
-            </div>
+  useEffect(() => {
+    fetchOverlayData();
+  }, [fetchOverlayData]);
 
-            {selectedRegionId === null ? (
-                <div className="region-map__empty">
-                    Select a region to display its map.
-                </div>
-            ) : svgContent === null ? (
-                <div className="region-map__empty">
-                    No map available for {regionName}.
-                </div>
-            ) : (
-                <div className="region-map__container" ref={mapWrapperRef}>
-                    {/* Base dotlan SVG — overlay is injected directly into this SVG via useEffect */}
-                    <div
-                        ref={svgContainerRef}
-                        className="region-map__svg"
-                        dangerouslySetInnerHTML={{ __html: svgContent }}
-                    />
-                </div>
-            )}
+  // Re-fetch overlay on plan mutations
+  useEffect(() => {
+    return evesov.events.on('plan-changed', fetchOverlayData);
+  }, [fetchOverlayData]);
+
+  const handleRegionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const id = Number(e.target.value);
+    setSelectedRegionId(id);
+    void evesov.prefs.set(MAP_PREFS_KEY, String(id));
+  };
+
+  const handleExport = useCallback(async () => {
+    if (!mapWrapperRef.current || activePlanId === null) return;
+    setExporting(true);
+    try {
+      const got = await evesov.plans.get(activePlanId);
+      if (!got) return;
+      const dataUrl = await withOpsecCapture(async () => {
+        const canvas = await html2canvas(mapWrapperRef.current!, {
+          backgroundColor: '#111111',
+          scale: 2,
+          useCORS: true,
+        });
+        return canvas.toDataURL('image/png');
+      });
+      const regionName = planRegions.find((r) => r.id === selectedRegionId)?.name ?? 'region';
+      const filename = buildExportFilename({
+        planName: got.plan.name,
+        panel: 'regionMap',
+        systemName: regionName
+      });
+      await evesov.exports.capturePng(filename, dataUrl, {
+        planId: activePlanId,
+        planName: got.plan.name,
+        panel: 'regionMap',
+        systemName: regionName,
+        opsecPreset: useOpsec.getState().preset
+      });
+    } finally {
+      setExporting(false);
+    }
+  }, [activePlanId, planRegions, selectedRegionId]);
+
+  useEffect(() => {
+    useExportRegistry.getState().register('regionMap', handleExport);
+    return () => useExportRegistry.getState().unregister('regionMap');
+  }, [handleExport]);
+
+  const regionName = planRegions.find((r) => r.id === selectedRegionId)?.name ?? '';
+
+  return (
+    <div className="region-map">
+      <div className="region-map__controls">
+        <select
+          className="region-map__region-select"
+          value={selectedRegionId ?? ''}
+          onChange={handleRegionChange}
+        >
+          <option value="" disabled>Select region…</option>
+          {planRegions.map((r) => (
+            <option key={r.id} value={r.id}>{r.name}</option>
+          ))}
+        </select>
+        <OpsecPill />
+        <button
+          type="button"
+          className="region-map__export-btn"
+          onClick={handleExport}
+          disabled={exporting || !svgContent}
+        >
+          {exporting ? 'Exporting…' : 'Export PNG'}
+        </button>
+      </div>
+
+      {selectedRegionId === null ? (
+        <div className="region-map__empty">Select a region to display its map.</div>
+      ) : svgContent === null ? (
+        <div className="region-map__empty">No map available for {regionName}.</div>
+      ) : (
+        <div className="region-map__container" ref={mapWrapperRef}>
+          {/* Base dotlan SVG — overlay is injected directly into this SVG via useEffect */}
+          <div
+            ref={svgContainerRef}
+            className="region-map__svg"
+            // eslint-disable-next-line react/no-danger
+            dangerouslySetInnerHTML={{ __html: svgContent }}
+          />
         </div>
     );
 }

@@ -52,9 +52,12 @@ export function UpgradeCatalog() {
                   <td className="num">{fmt(u.startup)}</td>
                   <td>
                     {eff ? (
-                      <span className="effect-badge" title={eff.description}>
-                        {eff.symbol} {eff.label}
-                      </span>
+                      <img
+                        src={eff.icon}
+                        alt={eff.label}
+                        title={`${eff.label} Stability — ${eff.description}`}
+                        className="effect-badge__icon"
+                      />
                     ) : (
                       ''
                     )}
