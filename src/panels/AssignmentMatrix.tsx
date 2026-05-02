@@ -91,7 +91,8 @@ export function AssignmentMatrix() {
     async (systemId: number, upgradeName: string, has: boolean, installed: boolean) => {
       if (activePlanId === null) return;
       if (!has) {
-        await evesov.plans.assignUpgrade(activePlanId, systemId, upgradeName);
+        const r = await evesov.plans.assignUpgrade(activePlanId, systemId, upgradeName);
+        if (!r.ok) { alert(r.error ?? 'Failed to assign upgrade.'); return; }
       } else if (!installed) {
         await evesov.plans.setUpgradeInstalled(activePlanId, systemId, upgradeName, true);
       } else {

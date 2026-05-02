@@ -448,6 +448,17 @@ export function registerPlansIpc(): void {
     'plans.assignUpgrade',
     (_, planId: number, systemId: number, upgradeName: string): AssignResult => {
       const db = getDb();
+
+      if (/Stability Gen/i.test(upgradeName)) {
+        const existing = db.prepare(
+          `SELECT upgrade_name FROM plan_upgrades
+           WHERE plan_id = ? AND system_id = ? AND upgrade_name LIKE '%Stability Gen%'`
+        ).get(planId, systemId) as { upgrade_name: string } | undefined;
+        if (existing) {
+          return { ok: false, error: `A stability generator (${existing.upgrade_name}) is already assigned to this system. Only one is permitted.` };
+        }
+      }
+
       try {
         db.transaction(() => {
           db.prepare(

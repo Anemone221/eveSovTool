@@ -178,7 +178,7 @@ export function SystemDetail() {
     setWorking(name);
     try {
       const r = await evesov.plans.assignUpgrade(activePlanId, systemId, name);
-      if (!r.ok) console.warn('assign failed', r.error);
+      if (!r.ok) alert(r.error ?? 'Failed to assign upgrade.');
     } finally {
       setWorking(null);
     }
