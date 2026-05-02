@@ -13,8 +13,7 @@ const ITEMS: ActivityItem[] = [
   { id: 'sites', label: 'Sites', glyph: '◊' },
   { id: 'upgrades', label: 'Upgrades', glyph: '◫' },
   { id: 'structures', label: 'Structures', glyph: '⬡' },
-  { id: 'regionMap', label: 'Map', glyph: '⊙' },
-  { id: 'exports', label: 'Exports', glyph: '⤓' }
+  { id: 'regionMap', label: 'Map', glyph: '⊙' }
 ];
 
 interface ActivityBarProps {

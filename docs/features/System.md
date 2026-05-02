@@ -40,7 +40,7 @@ Writes via IPC; never touches SQLite directly.
 - `src/panels/SystemDetail.tsx` — the panel itself, including the `BudgetBar` component, status pill, collapsible sections, and the Available-upgrades filter.
 - `src/data/effects.ts` — `siteEffectsFor(upgradeName, sec)` and `aggregateGrants`.
 - `src/data/upgradeSymbols.ts` — upgrade name → symbol/abbreviation map (Cyno Beacon, Cyno Jammer, Supercapital Production, ALN; also abbreviations like `Mjr.3`).
-- `src/data/systemEffects.ts` — Stability Generator → effect badge (icon + label + canonical effect description). Looks up the PNG via `STABILITY_ICONS` in `src/data/mapIcons.ts`. Used in the SystemDetail header, PlanInspector row, and Upgrade catalog.
+- `src/data/systemEffects.ts` — Stability Generator → wormhole-style effect badge (symbol + label + description). Used in the SystemDetail header, PlanInspector row, and Upgrade catalog.
 - `src/data/piMaterials.ts` — static planet type → P0 PI materials mapping.
 - `electron/ipc/plans.ts` — `plans.systemBalance`, `plans.assignUpgrade`, `plans.removeUpgrade`, `plans.setSystemStatus`, `plans.setUpgradeInstalled`, `plans.setJumpBridgeLink`, `plans.getJumpBridgeLinks`.
 - `electron/ipc/data.ts` — `data.system`, `data.systemsInRange`.

@@ -31,7 +31,7 @@ Reads via `plans.matrix` (same IPC as the Assignment Matrix). All site computati
   - `upgradeSymbols` — show upgrade symbols in column headers.
   - `verticalHeaders` — toggle 45° ↔ 90° header angle (same CSS approach as Matrix).
   - `showUpgradeLabels` — toggle the Mjr.3/Mnr.2 labels beneath system names.
-- **PNG export**: same `html2canvas` + `exports.capturePng` approach as Matrix — captures a wrapper around both the totals list and the per-system table at full content size. Opsec redaction is not yet implemented.
+- **PNG export**: same `html2canvas` + `exports.capturePng` approach as Matrix. Opsec redaction applied before capture.
 - The formatting bar is the same `<FormatBar>` component as the Matrix, parameterised by the pref namespace.
 - "Only systems with grants" filtering keeps the view focused.
 

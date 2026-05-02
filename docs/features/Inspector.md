@@ -35,7 +35,7 @@ Reads via IPC only. Underlying tables (used by the rollup query):
 - **Click-to-focus**: clicking a system row calls `selectSystem(id)` and `focusPanel('system')`. If the System tab is closed, DockShell adds it back.
 - **Right-click context menu**: appears on the plan header, on each constellation header, and on each system row. Single action: "Clear upgrades for X". `confirm()` prompt before deletion — destructive and explicit.
 - **Constellation scope removal cascade**: when `plans.setScopes` drops a constellation that was previously in the scope set, child `system`-scope rows for systems in that constellation are also dropped. `plan_upgrades` rows are **left alone**.
-- **Effect badges**: derived from `PlanRollupRow.upgrades` via `effectsForUpgrades()`. Rendered as small `<img>` icons (Stability Generator PNGs from `STABILITY_ICONS`) after the system name. Tooltip shows the effect's full description.
+- **Effect badges**: derived from `PlanRollupRow.upgrades` via `effectsForUpgrades()`. Rendered as small inline spans after the system name. Tooltip shows the effect's full description.
 - **Local tag**: gated behind `inspector.showLocalTag` pref (off by default). Toggle is a checkbox in the Inspector header.
 - **Installed/Total column**: shows `installed/total` per system; turns green when complete (`installed === total > 0`). Editing happens in System Detail.
 - **Sort order within a constellation**: over-budget systems first, then alphabetical by name.

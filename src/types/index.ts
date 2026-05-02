@@ -162,26 +162,6 @@ export interface ImportReport {
 
 export type SovCsvKind = "stars" | "planets" | "upgrades";
 
-export interface CapturePngMeta {
-    planId?: number | null;
-    planName?: string;
-    panel?: string;
-    systemName?: string;
-    opsecPreset?: string;
-}
-
-export interface ExportLogEntry {
-    id: number;
-    planId: number | null;
-    planName: string;
-    exportType: string;
-    panel: string | null;
-    systemName: string | null;
-    filename: string | null;
-    opsecPreset: string | null;
-    exportedAt: string;
-}
-
 export interface RefreshSovArgs {
     kind: SovCsvKind;
     path: string;
@@ -374,14 +354,7 @@ export interface EveSovApi {
         capturePng: (
             filename: string,
             dataUrl: string,
-            meta?: CapturePngMeta,
-        ) => Promise<{ saved: boolean; path?: string; logId?: number }>;
-        list: (planId?: number | null) => Promise<ExportLogEntry[]>;
-        deleteLog: (id: number) => Promise<void>;
-        getConfig: () => Promise<Record<string, string>>;
-        setConfig: (key: string, value: string) => Promise<void>;
-        exportDna: (planId: number) => Promise<{ dna: string }>;
-        importDna: (dna: string) => Promise<{ planId: number; name: string }>;
+        ) => Promise<{ saved: boolean; path?: string }>;
     };
     structures: {
         list: (planId: number, systemId?: number) => Promise<StructureNode[]>;

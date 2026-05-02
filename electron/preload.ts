@@ -66,14 +66,7 @@ const api: EveSovApi = {
     dockBack: (windowId) => ipcRenderer.invoke('windows.dockBack', windowId)
   },
   exports: {
-    capturePng: (filename, dataUrl, meta) =>
-      ipcRenderer.invoke('exports.capturePng', filename, dataUrl, meta),
-    list: (planId) => ipcRenderer.invoke('exports.list', planId ?? null),
-    deleteLog: (id) => ipcRenderer.invoke('exports.deleteLog', id),
-    getConfig: () => ipcRenderer.invoke('exports.getConfig'),
-    setConfig: (key, value) => ipcRenderer.invoke('exports.setConfig', key, value),
-    exportDna: (planId) => ipcRenderer.invoke('exports.exportDna', planId),
-    importDna: (dna) => ipcRenderer.invoke('exports.importDna', dna)
+    capturePng: (filename, dataUrl) => ipcRenderer.invoke('exports.capturePng', filename, dataUrl)
   },
   structures: {
     list: (planId, systemId?) => ipcRenderer.invoke('structures.list', planId, systemId),

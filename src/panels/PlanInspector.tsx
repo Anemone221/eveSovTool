@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { evesov } from '@/api/evesov';
 import { MiniMeter } from '@/components/MiniMeter';
-import { badgesForUpgrades } from '@/data/systemEffects';
+import { effectsForUpgrades } from '@/data/systemEffects';
 import { useUi } from '@/state/uiStore';
 import type {
   ClearUpgradesScope,
@@ -266,14 +266,14 @@ export function PlanInspector() {
                                 >
                                   {s.systemName}
                                 </button>
-                                {badgesForUpgrades(s.upgrades).map((b) => (
-                                  <img
-                                    key={b.key}
-                                    src={b.icon}
-                                    alt={b.label}
-                                    title={b.description}
-                                    className="effect-badge__icon"
-                                  />
+                                {effectsForUpgrades(s.upgrades).map((eff) => (
+                                  <span
+                                    key={eff.label}
+                                    className="effect-badge"
+                                    title={`${eff.label}: ${eff.description}`}
+                                  >
+                                    {eff.symbol}
+                                  </span>
                                 ))}
                                 {s.status !== 'local' && (
                                   <span className={`status-tag status-tag--${s.status}`} title={`Workforce: ${s.status}`}>
