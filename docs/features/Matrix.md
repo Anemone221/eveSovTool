@@ -34,11 +34,10 @@ Reads via IPC only. Backed by `plan_scopes`, `plan_upgrades` (including `install
     - `verticalHeaders` — toggle 45° ↔ 90° header angle (header row height 180 px ↔ 120 px; totals-row sticky `top` follows).
     - `hideUnused` — filter `allUpgrades` to those with `totals > 0`.
     - `showInstalled` — render installed (●) vs todo (○) glyphs in cells instead of a uniform dot. Backed by `plan_upgrades.installed` (added via migration).
-- **PNG export**: renderer-side `html2canvas` captures the matrix `<div>`, converts to a data URL, sends to main via `exports.capturePng(filename, dataUrl)`; main shows `dialog.showSaveDialog` and writes the file. Opsec redaction (hide names, watermark) is **not yet implemented** — see Exports.md for the planned config layer.
+- **PNG export**: renderer-side `html2canvas` captures the `.matrix__scroll` `<div>` at full content size (`width`/`height`/`windowWidth`/`windowHeight` set to the element's `scrollWidth`/`scrollHeight`) so tables wider or taller than the viewport are captured in full. The data URL is sent to main via `exports.capturePng(filename, dataUrl)`; main shows `dialog.showSaveDialog` and writes the file. Opsec redaction (hide names, watermark) is **not yet implemented** — see Exports.md for the planned config layer.
 - `html2canvas` is added as a dependency. It is renderer-only — no ABI concerns.
 
 ## Open questions / next steps
 
 - Drone-region column grouping or visual distinction.
-- `html2canvas` scroll capture for tables wider than the viewport — may need `scrollX`/`scrollY` options.
 - The workforce and power bars are supposed to be background effects of the cell.

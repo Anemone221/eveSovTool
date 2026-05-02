@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import html2canvas from 'html2canvas';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { evesov } from '@/api/evesov';
 import { useUi } from '@/state/uiStore';
 import { siteEffectsFor } from '@/data/effects';
@@ -16,6 +17,24 @@ export function SitesOverview() {
   const activePlanId = useUi((s) => s.activePlanId);
   const selectSystem = useUi((s) => s.selectSystem);
   const [matrix, setMatrix] = useState<PlanMatrix | null>(null);
+  const matrixRef = useRef<HTMLDivElement>(null);
+
+  const onExportPng = useCallback(async () => {
+    const el = matrixRef.current;
+    if (!el) return;
+    const canvas = await html2canvas(el, {
+      backgroundColor: '#1a1a1a',
+      width: el.scrollWidth,
+      height: el.scrollHeight,
+      windowWidth: el.scrollWidth,
+      windowHeight: el.scrollHeight,
+      scrollX: 0,
+      scrollY: 0
+    });
+    const dataUrl = canvas.toDataURL('image/png');
+    const filename = `sites-${activePlanId ?? 'plan'}-${Date.now()}.png`;
+    await evesov.exports.capturePng(filename, dataUrl);
+  }, [activePlanId]);
 
   const refresh = useCallback(async () => {
     if (activePlanId === null) {
@@ -93,7 +112,11 @@ export function SitesOverview() {
           {rows.length} systems · {columns.length} site types · {grandTotal.toLocaleString()} total sites
         </span>
       </header>
+      <div className="format-bar__actions">
+        <button type="button" className="matrix__export-btn" onClick={onExportPng}>Export PNG</button>
+      </div>
 
+      <div ref={matrixRef}>
       <section className="inspector__section">
         <h3>Sites totals across plan</h3>
         <ul className="grants">
@@ -156,6 +179,7 @@ export function SitesOverview() {
           </table>
         </div>
       </section>
+      </div>
     </div>
   );
 }

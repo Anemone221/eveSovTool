@@ -115,8 +115,17 @@ export function AssignmentMatrix() {
   );
 
   const onExportPng = useCallback(async () => {
-    if (!matrixRef.current) return;
-    const canvas = await html2canvas(matrixRef.current, { backgroundColor: '#1a1a1a' });
+    const el = matrixRef.current;
+    if (!el) return;
+    const canvas = await html2canvas(el, {
+      backgroundColor: '#1a1a1a',
+      width: el.scrollWidth,
+      height: el.scrollHeight,
+      windowWidth: el.scrollWidth,
+      windowHeight: el.scrollHeight,
+      scrollX: 0,
+      scrollY: 0
+    });
     const dataUrl = canvas.toDataURL('image/png');
     const filename = `matrix-${activePlanId ?? 'plan'}-${Date.now()}.png`;
     await evesov.exports.capturePng(filename, dataUrl);

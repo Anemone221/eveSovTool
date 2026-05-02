@@ -655,18 +655,15 @@ table.grid td.cost-produces { color: var(--ok); }
 }
 
 /* Overview pages (matrix + sites) */
-.overview { padding: 16px 24px; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; min-height: 0; }
+.overview { padding: 16px 24px; height: 100%; box-sizing: border-box; overflow: auto; }
 .overview--empty { color: var(--fg-mute); padding: 16px 24px; }
 .overview__header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; }
 .overview__header h2 { margin: 0; font-size: 18px; }
 .overview__meta { font-size: 11px; color: var(--fg-dim); }
 
 .matrix__scroll {
-  flex: 1;
-  overflow: auto;
   border: 1px solid var(--border);
   border-radius: 4px;
-  min-height: 0;
 }
 .matrix {
   border-collapse: separate;
