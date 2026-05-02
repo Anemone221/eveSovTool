@@ -148,6 +148,26 @@ CREATE TABLE IF NOT EXISTS plan_structures (
 CREATE INDEX IF NOT EXISTS idx_plan_structures_system
   ON plan_structures(plan_id, system_id);
 
+-- ===== Exports =====
+
+CREATE TABLE IF NOT EXISTS export_log (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  plan_id       INTEGER REFERENCES plans(id) ON DELETE SET NULL,
+  plan_name     TEXT    NOT NULL,
+  export_type   TEXT    NOT NULL,
+  panel         TEXT,
+  system_name   TEXT,
+  filename      TEXT,
+  opsec_preset  TEXT,
+  exported_at   TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_export_log_plan ON export_log(plan_id, exported_at DESC);
+
+CREATE TABLE IF NOT EXISTS export_config (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 -- ===== Views =====
 
 DROP VIEW IF EXISTS system_budget;

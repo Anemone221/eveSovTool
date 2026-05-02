@@ -2,6 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import html2canvas from 'html2canvas';
 import { evesov } from '@/api/evesov';
 import { useUi } from '@/state/uiStore';
+import { OpsecPill } from '@/components/OpsecPill';
+import { useOpsec } from '@/state/opsecStore';
+import { useExportRegistry } from '@/state/exportRegistry';
+import { buildExportFilename } from '@/data/exportFilename';
+import { withOpsecCapture } from '@/data/opsecCapture';
 import type { MapOverlayData, MapAuraData, TreeNodeRegion } from '@shared/index';
 import {
   STRUCTURE_ICONS,
@@ -301,22 +306,42 @@ export function RegionMap() {
     void evesov.prefs.set(MAP_PREFS_KEY, String(id));
   };
 
-  const handleExport = async () => {
-    if (!mapWrapperRef.current) return;
+  const handleExport = useCallback(async () => {
+    if (!mapWrapperRef.current || activePlanId === null) return;
     setExporting(true);
     try {
-      const canvas = await html2canvas(mapWrapperRef.current, {
-        backgroundColor: '#111111',
-        scale: 2,
-        useCORS: true,
+      const got = await evesov.plans.get(activePlanId);
+      if (!got) return;
+      const dataUrl = await withOpsecCapture(async () => {
+        const canvas = await html2canvas(mapWrapperRef.current!, {
+          backgroundColor: '#111111',
+          scale: 2,
+          useCORS: true,
+        });
+        return canvas.toDataURL('image/png');
       });
-      const dataUrl = canvas.toDataURL('image/png');
       const regionName = planRegions.find((r) => r.id === selectedRegionId)?.name ?? 'region';
-      await evesov.exports.capturePng(`region-map-${regionName}.png`, dataUrl);
+      const filename = buildExportFilename({
+        planName: got.plan.name,
+        panel: 'regionMap',
+        systemName: regionName
+      });
+      await evesov.exports.capturePng(filename, dataUrl, {
+        planId: activePlanId,
+        planName: got.plan.name,
+        panel: 'regionMap',
+        systemName: regionName,
+        opsecPreset: useOpsec.getState().preset
+      });
     } finally {
       setExporting(false);
     }
-  };
+  }, [activePlanId, planRegions, selectedRegionId]);
+
+  useEffect(() => {
+    useExportRegistry.getState().register('regionMap', handleExport);
+    return () => useExportRegistry.getState().unregister('regionMap');
+  }, [handleExport]);
 
   const regionName = planRegions.find((r) => r.id === selectedRegionId)?.name ?? '';
 
@@ -333,6 +358,7 @@ export function RegionMap() {
             <option key={r.id} value={r.id}>{r.name}</option>
           ))}
         </select>
+        <OpsecPill />
         <button
           type="button"
           className="region-map__export-btn"

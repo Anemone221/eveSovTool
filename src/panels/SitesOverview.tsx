@@ -2,6 +2,11 @@ import html2canvas from 'html2canvas';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { evesov } from '@/api/evesov';
 import { useUi } from '@/state/uiStore';
+import { OpsecPill } from '@/components/OpsecPill';
+import { useOpsec } from '@/state/opsecStore';
+import { useExportRegistry } from '@/state/exportRegistry';
+import { buildExportFilename } from '@/data/exportFilename';
+import { withOpsecCapture } from '@/data/opsecCapture';
 import { siteEffectsFor } from '@/data/effects';
 import { badgesForUpgrades } from '@/data/systemEffects';
 import type { PlanMatrix } from '@shared/index';
@@ -23,20 +28,34 @@ export function SitesOverview() {
 
   const onExportPng = useCallback(async () => {
     const el = matrixRef.current;
-    if (!el) return;
-    const canvas = await html2canvas(el, {
-      backgroundColor: '#1a1a1a',
-      width: el.scrollWidth,
-      height: el.scrollHeight,
-      windowWidth: el.scrollWidth,
-      windowHeight: el.scrollHeight,
-      scrollX: 0,
-      scrollY: 0
+    if (!el || activePlanId === null) return;
+    const got = await evesov.plans.get(activePlanId);
+    if (!got) return;
+    const dataUrl = await withOpsecCapture(async () => {
+      const canvas = await html2canvas(el, {
+        backgroundColor: '#1a1a1a',
+        width: el.scrollWidth,
+        height: el.scrollHeight,
+        windowWidth: el.scrollWidth,
+        windowHeight: el.scrollHeight,
+        scrollX: 0,
+        scrollY: 0
+      });
+      return canvas.toDataURL('image/png');
     });
-    const dataUrl = canvas.toDataURL('image/png');
-    const filename = `sites-${activePlanId ?? 'plan'}-${Date.now()}.png`;
-    await evesov.exports.capturePng(filename, dataUrl);
+    const filename = buildExportFilename({ planName: got.plan.name, panel: 'sites' });
+    await evesov.exports.capturePng(filename, dataUrl, {
+      planId: activePlanId,
+      planName: got.plan.name,
+      panel: 'sites',
+      opsecPreset: useOpsec.getState().preset
+    });
   }, [activePlanId]);
+
+  useEffect(() => {
+    useExportRegistry.getState().register('sites', onExportPng);
+    return () => useExportRegistry.getState().unregister('sites');
+  }, [onExportPng]);
 
   const refresh = useCallback(async () => {
     if (activePlanId === null) {
@@ -116,6 +135,7 @@ export function SitesOverview() {
         </span>
       </header>
       <div className="format-bar__actions">
+        <OpsecPill />
         <button type="button" className="matrix__export-btn" onClick={onExportPng}>Export PNG</button>
       </div>
 
