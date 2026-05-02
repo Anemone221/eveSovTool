@@ -21,6 +21,7 @@ Each feature in the app has its own short doc here. The point is to give Claude 
 | [Moon-Scans.md](Moon-Scans.md) | Moon survey storage: paste import, session management, ore composition. |
 | [Settings.md](Settings.md) | Color palettes and theme configuration. |
 | [Data-Management.md](Data-Management.md) | Upgrade value editor, system resource overrides, CSV re-import, data purge. |
+| [RegionMap.md](RegionMap.md) | `RegionMap` panel: dotlan SVG base map, upgrade/structure icon overlays, ALN bridge lines, exploration aura, PNG export. |
 
 ## Doc template
 

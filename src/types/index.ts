@@ -144,6 +144,8 @@ export interface ImportCounts {
     planets?: number;
     upgrades?: number;
     stargates?: number;
+    svgMaps?: number;
+    svgSkipped?: number;
 }
 
 export interface ImportWarning {
@@ -214,6 +216,27 @@ export interface StructureNode {
     regionId: number;
     regionName: string;
     structures: PlanStructure[];
+}
+
+export interface MapSystemOverlay {
+    systemId: number;
+    structureTypes: string[];
+    stabilityEffect: string | null;
+    miningTier: 1 | 2 | 3 | null;
+    hasCombatSites: boolean;
+    hasAnsiblex: boolean;
+    hasCynoBeacon: boolean;
+    hasCynoJammer: boolean;
+    hasRelicSites: boolean;
+}
+
+export interface MapOverlayData {
+    systems: MapSystemOverlay[];
+    alnPairs: [number, number][];
+}
+
+export interface MapAuraData {
+    aura: Record<number, number>;
 }
 
 export interface EveSovApi {
@@ -346,6 +369,11 @@ export interface EveSovApi {
             systemId: number,
             text: string,
         ) => Promise<{ count: number }>;
+    };
+    map: {
+        regionSvg: (regionId: number) => Promise<string | null>;
+        overlayData: (planId: number, regionId: number) => Promise<MapOverlayData>;
+        auraData: (planId: number, regionId: number) => Promise<MapAuraData>;
     };
     events: {
         on: (

@@ -56,6 +56,24 @@ export function runMigrations(db: DB, seedPath?: string): void {
     }
   }
 
+  const regionCols = (
+    db.prepare('PRAGMA table_info(regions)').all() as { name: string }[]
+  ).map((r) => r.name);
+  if (!regionCols.includes('map_svg')) {
+    db.exec('ALTER TABLE regions ADD COLUMN map_svg TEXT');
+  }
+
+  // Backfill map_svg from seed.db if this user DB has regions with NULL map_svg.
+  const missingMapSvg = (db.prepare('SELECT COUNT(*) AS n FROM regions WHERE map_svg IS NULL').get() as { n: number }).n;
+  if (missingMapSvg > 0 && seedPath && existsSync(seedPath)) {
+    db.exec(`ATTACH DATABASE '${seedPath.replace(/'/g, "''")}' AS seed`);
+    try {
+      db.prepare('UPDATE regions SET map_svg = (SELECT map_svg FROM seed.regions sr WHERE sr.id = regions.id) WHERE map_svg IS NULL').run();
+    } finally {
+      db.exec('DETACH DATABASE seed');
+    }
+  }
+
   // Backfill x/y/z coordinates from seed.db if this user DB has systems with NULL coords.
   const missingCoords = (db.prepare('SELECT COUNT(*) AS n FROM systems WHERE x IS NULL').get() as { n: number }).n;
   if (missingCoords > 0 && seedPath && existsSync(seedPath)) {

@@ -74,6 +74,11 @@ const api: EveSovApi = {
     remove: (planId, structureId) => ipcRenderer.invoke('structures.remove', planId, structureId),
     importClipboard: (planId, systemId, text) => ipcRenderer.invoke('structures.importClipboard', planId, systemId, text),
   },
+  map: {
+    regionSvg: (regionId) => ipcRenderer.invoke('map.regionSvg', regionId),
+    overlayData: (planId, regionId) => ipcRenderer.invoke('map.overlayData', planId, regionId),
+    auraData: (planId, regionId) => ipcRenderer.invoke('map.auraData', planId, regionId),
+  },
   events: {
     on: (channel, listener) => {
       const wrapped = (_: unknown, payload: unknown) => listener(payload);

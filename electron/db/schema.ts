@@ -7,7 +7,8 @@ PRAGMA journal_mode = WAL;
 CREATE TABLE IF NOT EXISTS regions (
   id          INTEGER PRIMARY KEY,
   name        TEXT NOT NULL UNIQUE,
-  faction_id  INTEGER
+  faction_id  INTEGER,
+  map_svg     TEXT
 );
 
 CREATE TABLE IF NOT EXISTS constellations (

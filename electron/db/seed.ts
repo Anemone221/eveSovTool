@@ -10,6 +10,8 @@ import {
     importUpgradesCsv,
 } from "../csv/importer.js";
 import { importSde, importStargates } from "../sde/importer.js";
+import { regionNameToUrl } from "../sde/dotlanUrl.js";
+import { sanitizeDotlanSvg } from "../sde/svgSanitize.js";
 import { openDatabase } from "./connection.js";
 
 const ROOT = process.cwd();
@@ -64,7 +66,7 @@ function downloadToBuffer(url: string): Promise<Buffer> {
                 return;
             }
             https
-                .get(target, (res) => {
+                .get(target, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36' } }, (res) => {
                     if (
                         res.statusCode &&
                         res.statusCode >= 300 &&
@@ -165,6 +167,45 @@ async function downloadSde(tmpDir: string): Promise<Map<string, string>> {
     return files;
 }
 
+async function fetchDotlanSvgs(
+    db: ReturnType<typeof openDatabase>,
+    downloader: (url: string) => Promise<Buffer>,
+): Promise<ImportReport> {
+    type RegionRow = { id: number; name: string };
+    const regions = db
+        .prepare(
+            `SELECT DISTINCT r.id, r.name
+             FROM regions r
+             JOIN systems s  ON s.region_id  = r.id
+             JOIN stars   st ON st.system_id = s.id
+             WHERE st.description IS NOT NULL
+             ORDER BY r.name`,
+        )
+        .all() as RegionRow[];
+
+    const update = db.prepare('UPDATE regions SET map_svg = ? WHERE id = ?');
+    let fetched = 0;
+    let skipped = 0;
+
+    for (const region of regions) {
+        const url = regionNameToUrl(region.name);
+        try {
+            const buf = await downloader(url);
+            const svg = sanitizeDotlanSvg(buf.toString('utf8'));
+            update.run(svg, region.id);
+            fetched++;
+            console.log(`[seed] SVG fetched: ${region.name}`);
+        } catch (err) {
+            console.warn(`[seed] SVG skipped (${region.name}): ${(err as Error).message}`);
+            skipped++;
+        }
+        // Be polite to dotlan's server.
+        await new Promise((r) => setTimeout(r, 150));
+    }
+
+    return { counts: { svgMaps: fetched, svgSkipped: skipped }, warnings: [] };
+}
+
 async function main() {
     const args = parseArgs(process.argv);
     console.log(`[seed] data=${args.data}`);
@@ -233,12 +274,18 @@ async function main() {
         console.log("[seed] importing mapStargates.jsonl...");
         const stargatesReport = await importStargates(db, sdeFiles.get("mapStargates.jsonl")!);
 
+        console.log("[seed] fetching dotlan SVG maps...");
+        const svgStart = Date.now();
+        const svgReport = await fetchDotlanSvgs(db, downloadToBuffer);
+        console.log(`[seed] SVG maps done in ${Date.now() - svgStart}ms`);
+
         const merged = mergeReports([
             sdeReport,
             starsReport,
             planetsReport,
             upgradesReport,
             stargatesReport,
+            svgReport,
         ]);
 
         console.log("[seed] counts:", merged.counts);

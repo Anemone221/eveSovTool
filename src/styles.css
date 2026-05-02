@@ -1026,3 +1026,15 @@ thead .matrix__sticky-col { z-index: 3; background: var(--bg-elev); }
   gap: 8px;
   flex-wrap: wrap;
 }
+
+/* ===== Region Map ===== */
+.region-map { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.region-map__controls { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.region-map__region-select { background: var(--bg-elev); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; font: inherit; font-size: 12px; flex: 1; max-width: 220px; }
+.region-map__export-btn { background: var(--bg-elev); color: var(--fg-dim); border: 1px solid var(--border); border-radius: 4px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
+.region-map__export-btn:hover:not(:disabled) { color: var(--fg); border-color: var(--accent); }
+.region-map__export-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.region-map__empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--fg-dim); font-size: 13px; }
+.region-map__container { position: relative; flex: 1; overflow: auto; }
+.region-map__svg { display: block; }
+.region-map__svg svg { display: block; }
