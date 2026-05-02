@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import html2canvas from 'html2canvas';
 import { evesov } from '@/api/evesov';
 import { useUi } from '@/state/uiStore';
 import { OpsecPill } from '@/components/OpsecPill';
@@ -25,6 +24,9 @@ const MAP_PREFS_KEY = 'map.selectedRegionId';
 const NODE_CX = 28.5;
 const NODE_CY = 14.5;
 const NODE_H = 28;
+// Padding added to the SVG viewBox on all sides so overlay icons (rendered outside
+// the base node bounds) are never clipped by the viewport edge.
+const SVG_MARGIN = 24;
 
 export function RegionMap() {
   const activePlanId = useUi((s) => s.activePlanId);
@@ -44,7 +46,6 @@ export function RegionMap() {
   const positionsRef = useRef<Map<number, { x: number; y: number }>>(new Map());
 
   const svgContainerRef = useRef<HTMLDivElement>(null);
-  const mapWrapperRef = useRef<HTMLDivElement>(null);
 
   // Load tree once
   useEffect(() => {
@@ -128,9 +129,19 @@ export function RegionMap() {
   useEffect(() => {
     if (!svgContent || !svgContainerRef.current) return;
     const frame = requestAnimationFrame(() => {
-      // Allow the overlay group to extend outside the SVG's viewBox without clipping.
       const svgEl = svgContainerRef.current!.querySelector('svg');
-      if (svgEl) svgEl.setAttribute('overflow', 'visible');
+      if (svgEl) {
+        // Expand the viewBox by SVG_MARGIN on all sides so overlay icons rendered
+        // outside the base node bounds are never clipped by the viewport edge.
+        const vb = svgEl.getAttribute('viewBox');
+        if (vb) {
+          const [x, y, w, h] = vb.split(' ').map(Number);
+          svgEl.setAttribute(
+            'viewBox',
+            `${x - SVG_MARGIN} ${y - SVG_MARGIN} ${w + SVG_MARGIN * 2} ${h + SVG_MARGIN * 2}`,
+          );
+        }
+      }
 
       const map = new Map<number, { x: number; y: number }>();
       const uses = svgContainerRef.current!.querySelectorAll<SVGUseElement>('use[id^="sys"]');
@@ -307,18 +318,42 @@ export function RegionMap() {
   };
 
   const handleExport = useCallback(async () => {
-    if (!mapWrapperRef.current || activePlanId === null) return;
+    if (!svgContainerRef.current || activePlanId === null) return;
     setExporting(true);
     try {
       const got = await evesov.plans.get(activePlanId);
       if (!got) return;
       const dataUrl = await withOpsecCapture(async () => {
-        const canvas = await html2canvas(mapWrapperRef.current!, {
-          backgroundColor: '#111111',
-          scale: 2,
-          useCORS: true,
+        const svgEl = svgContainerRef.current!.querySelector('svg');
+        if (!svgEl) return '';
+        const vb = svgEl.getAttribute('viewBox');
+        const [, , vbW, vbH] = vb ? vb.split(' ').map(Number) : [0, 0, 0, 0];
+        const SCALE = 2;
+        const W = vbW * SCALE;
+        const H = vbH * SCALE;
+        // Clone so we can set explicit dimensions without affecting the live SVG.
+        const clone = svgEl.cloneNode(true) as SVGSVGElement;
+        clone.setAttribute('width', String(vbW));
+        clone.setAttribute('height', String(vbH));
+        const serialised = new XMLSerializer().serializeToString(clone);
+        const url = 'data:image/svg+xml;base64,' + btoa(encodeURIComponent(serialised).replace(/%([0-9A-F]{2})/g, (_, p) => String.fromCharCode(parseInt(p, 16))));
+        return new Promise<string>((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = W;
+            canvas.height = H;
+            const ctx = canvas.getContext('2d')!;
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(0, 0, W, H);
+            ctx.drawImage(img, 0, 0, W, H);
+            resolve(canvas.toDataURL('image/png'));
+          };
+          img.onerror = (_e, _s, _l, _c, err) => {
+            reject(err ?? new Error('SVG render failed'));
+          };
+          img.src = url;
         });
-        return canvas.toDataURL('image/png');
       });
       const regionName = planRegions.find((r) => r.id === selectedRegionId)?.name ?? 'region';
       const filename = buildExportFilename({
@@ -374,7 +409,7 @@ export function RegionMap() {
       ) : svgContent === null ? (
         <div className="region-map__empty">No map available for {regionName}.</div>
       ) : (
-        <div className="region-map__container" ref={mapWrapperRef}>
+        <div className="region-map__container">
           {/* Base dotlan SVG — overlay is injected directly into this SVG via useEffect */}
           <div
             ref={svgContainerRef}
