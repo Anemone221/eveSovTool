@@ -626,6 +626,8 @@ table.grid td.cost-produces { color: var(--ok); }
 .inspector-tree__totals { display: inline-flex; gap: 6px; margin-left: auto; flex-shrink: 0; }
 .inspector-tree__systems { width: 100%; }
 .inspector-tree__systems thead th { padding-top: 4px; }
+.inspector-tree__systems td:first-child,
+.inspector-tree__systems th:first-child { padding-left: 8px; }
 
 /* Mini meter (constellation header inline) */
 .mini-meter { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; }
