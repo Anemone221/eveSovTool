@@ -393,6 +393,7 @@ export interface EveSovApi {
         getConfig: () => Promise<Record<string, string>>;
         setConfig: (key: string, value: string) => Promise<void>;
         exportDna: (planId: number) => Promise<{ dna: string }>;
+        exportDnaText: (planId: number) => Promise<{ dna: string }>;
         importDna: (dna: string) => Promise<{ planId: number; name: string }>;
     };
     structures: {

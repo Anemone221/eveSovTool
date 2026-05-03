@@ -2,6 +2,15 @@ import { ipcMain, dialog, BrowserWindow } from 'electron';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { getDb } from '../db/userDb.js';
+import {
+  encodeDnaV2Binary,
+  encodeDnaV2Text,
+  decodeDnaV2Binary,
+  decodeDnaV2Text,
+  type DnaPlanData,
+  type DnaSystemEntry,
+  type ValidatedDna as ValidatedDnaV2
+} from '../data/dnaCodec.js';
 
 const NAME_REGEX = /^[\w\s\-_.()]+$/;
 const MAX_DNA_LENGTH = 256 * 1024;
@@ -23,19 +32,92 @@ function isInt(v: unknown, min = 0, max = Number.MAX_SAFE_INTEGER): v is number 
   return typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max;
 }
 
-interface ValidatedDna {
-  name: string;
-  scopes: { scopeType: 'region' | 'constellation' | 'system'; scopeId: number }[];
-  upgrades: { systemId: number; upgradeName: string; installed: 0 | 1; ordering: number }[];
-  systemStatus: {
-    systemId: number;
+type ValidatedDna = ValidatedDnaV2;
+
+function buildPlanDataForExport(
+  planId: number
+): { plan: { id: number; name: string }; data: DnaPlanData } {
+  const db = getDb();
+  const plan = db.prepare('SELECT id, name FROM plans WHERE id = ?').get(planId) as
+    | { id: number; name: string }
+    | undefined;
+  if (!plan) throw new Error('Plan not found');
+
+  const scopeRows = db
+    .prepare('SELECT scope_type, scope_id FROM plan_scopes WHERE plan_id = ?')
+    .all(planId) as Array<{ scope_type: 'region' | 'constellation' | 'system'; scope_id: number }>;
+
+  const upgradeRows = db
+    .prepare(
+      `SELECT system_id, upgrade_name, ordering
+       FROM plan_upgrades WHERE plan_id = ? ORDER BY system_id, ordering`
+    )
+    .all(planId) as Array<{ system_id: number; upgrade_name: string; ordering: number }>;
+
+  const statusRows = db
+    .prepare(
+      `SELECT system_id, status, transfer_amount, destination_system_id, export_all_unused
+       FROM plan_system_status WHERE plan_id = ?`
+    )
+    .all(planId) as Array<{
+    system_id: number;
     status: 'local' | 'import' | 'export' | 'transit';
-    transferAmount: number;
-    destinationSystemId: number | null;
-    exportAllUnused: 0 | 1;
-  }[];
-  capitalSystems: number[];
-  alnLinks: { systemId: number; linkedSystemId: number; linkedSystemName: string }[];
+    transfer_amount: number;
+    destination_system_id: number | null;
+    export_all_unused: number;
+  }>;
+
+  const capRows = db
+    .prepare('SELECT system_id FROM plan_capital_systems WHERE plan_id = ?')
+    .all(planId) as Array<{ system_id: number }>;
+  const capitalSet = new Set(capRows.map((r) => r.system_id));
+
+  const alnRows = db
+    .prepare(
+      'SELECT system_id, linked_system_id FROM plan_aln_links WHERE plan_id = ? AND linked_system_id IS NOT NULL'
+    )
+    .all(planId) as Array<{ system_id: number; linked_system_id: number }>;
+  const alnMap = new Map<number, number>();
+  for (const r of alnRows) alnMap.set(r.system_id, r.linked_system_id);
+
+  const systemEntries = new Map<number, DnaSystemEntry>();
+  const ensure = (systemId: number): DnaSystemEntry => {
+    let entry = systemEntries.get(systemId);
+    if (!entry) {
+      entry = {
+        systemId,
+        upgrades: [],
+        status: 'local',
+        transferAmount: 0,
+        destinationSystemId: null,
+        exportAllUnused: false,
+        isCapital: false,
+        alnLinkedSystemId: null
+      };
+      systemEntries.set(systemId, entry);
+    }
+    return entry;
+  };
+
+  for (const row of upgradeRows) {
+    ensure(row.system_id).upgrades.push(row.upgrade_name);
+  }
+  for (const row of statusRows) {
+    const e = ensure(row.system_id);
+    e.status = row.status;
+    e.transferAmount = row.transfer_amount;
+    e.destinationSystemId = row.destination_system_id;
+    e.exportAllUnused = row.export_all_unused !== 0;
+  }
+  for (const id of capitalSet) ensure(id).isCapital = true;
+  for (const [systemId, linkedId] of alnMap) ensure(systemId).alnLinkedSystemId = linkedId;
+
+  const data: DnaPlanData = {
+    name: plan.name,
+    scopes: scopeRows.map((r) => ({ scopeType: r.scope_type, scopeId: r.scope_id })),
+    systems: Array.from(systemEntries.values()).sort((a, b) => a.systemId - b.systemId)
+  };
+  return { plan, data };
 }
 
 export interface CapturePngMeta {
@@ -223,79 +305,8 @@ export function registerExportsIpc(): void {
   });
 
   ipcMain.handle('exports.exportDna', (_, planId: number): { dna: string } => {
-    const db = getDb();
-    const plan = db.prepare('SELECT id, name FROM plans WHERE id = ?').get(planId) as
-      | { id: number; name: string }
-      | undefined;
-    if (!plan) throw new Error('Plan not found');
-
-    const scopeRows = db
-      .prepare('SELECT scope_type, scope_id FROM plan_scopes WHERE plan_id = ?')
-      .all(planId) as Array<{ scope_type: 'region' | 'constellation' | 'system'; scope_id: number }>;
-    const SCOPE_CODE = { region: 0, constellation: 1, system: 2 } as const;
-    const s = scopeRows.map(
-      (r) => [SCOPE_CODE[r.scope_type], r.scope_id] as [number, number]
-    );
-
-    const upgradeRows = db
-      .prepare(
-        `SELECT system_id, upgrade_name, installed, ordering
-         FROM plan_upgrades WHERE plan_id = ? ORDER BY system_id, ordering`
-      )
-      .all(planId) as Array<{
-      system_id: number;
-      upgrade_name: string;
-      installed: number;
-      ordering: number;
-    }>;
-    const u = upgradeRows.map(
-      (r) => [r.system_id, r.upgrade_name, r.installed ? 1 : 0, r.ordering] as [
-        number,
-        string,
-        0 | 1,
-        number
-      ]
-    );
-
-    const statusRows = db
-      .prepare(
-        `SELECT system_id, status, transfer_amount, destination_system_id, export_all_unused
-         FROM plan_system_status WHERE plan_id = ?`
-      )
-      .all(planId) as Array<{
-      system_id: number;
-      status: 'local' | 'import' | 'export' | 'transit';
-      transfer_amount: number;
-      destination_system_id: number | null;
-      export_all_unused: number;
-    }>;
-    const STATUS_CODE = { local: 0, import: 1, export: 2, transit: 3 } as const;
-    const st = statusRows.map(
-      (r) =>
-        [
-          r.system_id,
-          STATUS_CODE[r.status],
-          r.transfer_amount,
-          r.destination_system_id ?? 0,
-          r.export_all_unused ? 1 : 0
-        ] as [number, number, number, number, 0 | 1]
-    );
-
-    const capRows = db
-      .prepare('SELECT system_id FROM plan_capital_systems WHERE plan_id = ?')
-      .all(planId) as Array<{ system_id: number }>;
-    const cap = capRows.map((r) => r.system_id);
-
-    const alnRows = db
-      .prepare(
-        'SELECT system_id, linked_system_id FROM plan_aln_links WHERE plan_id = ? AND linked_system_id IS NOT NULL'
-      )
-      .all(planId) as Array<{ system_id: number; linked_system_id: number }>;
-    const aln = alnRows.map((r) => [r.system_id, r.linked_system_id] as [number, number]);
-
-    const payload = { v: 1, n: plan.name, s, u, st, cap, aln };
-    const dna = 'ESOV1' + Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
-
+    const { plan, data } = buildPlanDataForExport(planId);
+    const dna = encodeDnaV2Binary(data);
     logExport({
       planId: plan.id,
       planName: plan.name,
@@ -305,7 +316,21 @@ export function registerExportsIpc(): void {
       filename: null,
       opsecPreset: null
     });
+    return { dna };
+  });
 
+  ipcMain.handle('exports.exportDnaText', (_, planId: number): { dna: string } => {
+    const { plan, data } = buildPlanDataForExport(planId);
+    const dna = encodeDnaV2Text(data);
+    logExport({
+      planId: plan.id,
+      planName: plan.name,
+      exportType: 'dna-export-text',
+      panel: null,
+      systemName: null,
+      filename: null,
+      opsecPreset: null
+    });
     return { dna };
   });
 
@@ -314,24 +339,30 @@ export function registerExportsIpc(): void {
     (_, dna: unknown): { planId: number; name: string } => {
       if (typeof dna !== 'string') throw new Error('DNA must be a string.');
       if (dna.length > MAX_DNA_LENGTH) throw new Error('DNA payload exceeds size limit.');
-      if (!dna.startsWith('ESOV1')) throw new Error('Not an ESOV1 DNA string.');
 
-      let json: string;
-      try {
-        json = Buffer.from(dna.slice(5), 'base64').toString('utf8');
-      } catch {
-        throw new Error('DNA base64 decode failed.');
+      let validated: ValidatedDna;
+      if (dna.startsWith('ESOV2B')) {
+        validated = decodeDnaV2Binary(dna);
+      } else if (dna.startsWith('ESOV2T')) {
+        validated = decodeDnaV2Text(dna);
+      } else if (dna.startsWith('ESOV1')) {
+        let json: string;
+        try {
+          json = Buffer.from(dna.slice(5), 'base64').toString('utf8');
+        } catch {
+          throw new Error('DNA base64 decode failed.');
+        }
+        if (json.length > MAX_JSON_LENGTH) throw new Error('Decoded payload exceeds size limit.');
+        let raw: unknown;
+        try {
+          raw = JSON.parse(json);
+        } catch {
+          throw new Error('DNA JSON parse failed.');
+        }
+        validated = validateDnaPayloadV1(raw);
+      } else {
+        throw new Error('Unrecognised DNA prefix (expected ESOV1, ESOV2B, or ESOV2T).');
       }
-      if (json.length > MAX_JSON_LENGTH) throw new Error('Decoded payload exceeds size limit.');
-
-      let raw: unknown;
-      try {
-        raw = JSON.parse(json);
-      } catch {
-        throw new Error('DNA JSON parse failed.');
-      }
-
-      const validated = validateDnaPayload(raw);
 
       const db = getDb();
       const result = db.transaction((): { planId: number; name: string } => {
@@ -472,7 +503,7 @@ export function registerExportsIpc(): void {
   );
 }
 
-function validateDnaPayload(raw: unknown): ValidatedDna {
+function validateDnaPayloadV1(raw: unknown): ValidatedDna {
   if (!raw || typeof raw !== 'object') throw new Error('Payload is not an object.');
   const o = raw as Record<string, unknown>;
   if (o.v !== 1) throw new Error('Unsupported DNA version.');
