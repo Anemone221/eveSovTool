@@ -271,6 +271,14 @@ export function RegionMap() {
       linesG.appendChild(path);
     }
 
+    // DB icon for a single upgrade name, falling back to the provided default.
+    const dbIcon = (name: string, fallback: string): string =>
+      overlay.upgradeIcons[name] ?? fallback;
+    // DB icon for a list of upgrade names sharing a category — uses the first
+    // name that has a DB icon, otherwise falls back to the provided default.
+    const dbIconAny = (names: string[], fallback: string): string =>
+      names.map((n) => overlay.upgradeIcons[n]).find(Boolean) ?? fallback;
+
     // 3. Per-system icons (above system nodes)
     for (const sys of overlay.systems) {
       const p = pos.get(sys.systemId);
@@ -284,7 +292,7 @@ export function RegionMap() {
       const upgradeTips: string[] = [];
 
       if (sys.miningTier !== null) {
-        upgradeIcons.push(MINING_ICONS[sys.miningTier]);
+        upgradeIcons.push(dbIconAny(sys.miningUpgrades, MINING_ICONS[sys.miningTier]));
         const grants = formatGrants(
           aggregateGrants(sys.miningUpgrades.map((u) => siteEffectsFor(u, sys.trueSec))),
         );
@@ -292,7 +300,7 @@ export function RegionMap() {
         upgradeTips.push(grants ? `${names}\nSpawns: ${grants}` : names);
       }
       if (sys.hasCombatSites) {
-        upgradeIcons.push(combatSite);
+        upgradeIcons.push(dbIconAny(sys.combatUpgrades, combatSite));
         const grants = formatGrants(
           aggregateGrants(sys.combatUpgrades.map((u) => siteEffectsFor(u, sys.trueSec))),
         );
@@ -300,23 +308,23 @@ export function RegionMap() {
         upgradeTips.push(grants ? `${names}\nSpawns: ${grants}` : names);
       }
       if (sys.hasAnsiblex) {
-        upgradeIcons.push(jumpPortal);
+        upgradeIcons.push(dbIcon('Advanced Logistics Network', jumpPortal));
         upgradeTips.push('Advanced Logistics Network\nEnables Ansiblex jump bridge');
       }
       if (sys.hasCynoBeacon) {
-        upgradeIcons.push(cynoBeacon);
+        upgradeIcons.push(dbIcon('Cynosural Navigation', cynoBeacon));
         upgradeTips.push('Cynosural Navigation\nEnables cynosural beacon');
       }
       if (sys.hasCynoJammer) {
-        upgradeIcons.push(cynoJammer);
+        upgradeIcons.push(dbIcon('Cynosural Suppression', cynoJammer));
         upgradeTips.push('Cynosural Suppression\nBlocks cynos (except covert)');
       }
       if (sys.hasRelicSites) {
-        upgradeIcons.push(relicSite);
-        upgradeTips.push('Exploration Detector Array\nSpawns relic and data sites');
+        upgradeIcons.push(dbIconAny(sys.relicUpgrades, relicSite));
+        upgradeTips.push(`${sys.relicUpgrades.join(', ')}\nSpawns relic and data sites`);
       }
       if (sys.stabilityEffect && STABILITY_ICONS[sys.stabilityEffect]) {
-        upgradeIcons.push(STABILITY_ICONS[sys.stabilityEffect]);
+        upgradeIcons.push(dbIcon(sys.stabilityEffect, STABILITY_ICONS[sys.stabilityEffect]));
         upgradeTips.push(sys.stabilityEffect);
       }
 

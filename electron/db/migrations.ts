@@ -51,6 +51,13 @@ export function runMigrations(db: DB, seedPath?: string): void {
     db.exec('ALTER TABLE regions ADD COLUMN map_svg TEXT');
   }
 
+  const upgradeColNames = (
+    db.prepare('PRAGMA table_info(upgrades)').all() as { name: string }[]
+  ).map((r) => r.name);
+  if (!upgradeColNames.includes('icon')) {
+    db.exec('ALTER TABLE upgrades ADD COLUMN icon BLOB');
+  }
+
   // Unconditionally sync all seeded read-only tables from seed.db so that
   // re-seeding (e.g. updated SVGs, new sov data) propagates to existing user DBs
   // without requiring a manual app.db delete.
@@ -75,8 +82,8 @@ export function runMigrations(db: DB, seedPath?: string): void {
           INSERT OR REPLACE INTO planets (id, system_id, name, power, workforce, superionic_ice_per_hour, magmatic_gas_per_hour)
             SELECT id, system_id, name, power, workforce, superionic_ice_per_hour, magmatic_gas_per_hour FROM seed.planets;
 
-          INSERT OR REPLACE INTO upgrades (name, power, workforce, superionic_ice, magmatic_gas, startup)
-            SELECT name, power, workforce, superionic_ice, magmatic_gas, startup FROM seed.upgrades;
+          INSERT OR REPLACE INTO upgrades (name, power, workforce, superionic_ice, magmatic_gas, startup, icon)
+            SELECT name, power, workforce, superionic_ice, magmatic_gas, startup, icon FROM seed.upgrades;
 
           INSERT OR REPLACE INTO system_adjacency (system_id, neighbor_id)
             SELECT system_id, neighbor_id FROM seed.system_adjacency;

@@ -38,6 +38,20 @@ export function registerMapIpc(): void {
         )
         .all(planId, regionId) as UpgradeRow[];
 
+      // Icons stored in the upgrades table for any upgrade name used in this region.
+      type IconRow = { name: string; icon: Buffer | null };
+      const uniqueNames = [...new Set(upgradeRows.map((r) => r.upgrade_name))];
+      const upgradeIcons: Record<string, string> = {};
+      if (uniqueNames.length > 0) {
+        const placeholders = uniqueNames.map(() => '?').join(',');
+        const iconRows = db
+          .prepare(`SELECT name, icon FROM upgrades WHERE icon IS NOT NULL AND name IN (${placeholders})`)
+          .all(...uniqueNames) as IconRow[];
+        for (const { name, icon } of iconRows) {
+          if (icon) upgradeIcons[name] = 'data:image/png;base64,' + icon.toString('base64');
+        }
+      }
+
       // Structures per system in this region for this plan
       type StructureRow = { system_id: number; structure_type: string };
       const structureRows = db
@@ -88,6 +102,7 @@ export function registerMapIpc(): void {
             hasCynoBeacon: false,
             hasCynoJammer: false,
             hasRelicSites: false,
+            relicUpgrades: [],
           });
         }
         return overlayMap.get(systemId)!;
@@ -118,6 +133,7 @@ export function registerMapIpc(): void {
 
         if (EXPLORATION_RE.test(name)) {
           overlay.hasRelicSites = true;
+          if (!overlay.relicUpgrades.includes(name)) overlay.relicUpgrades.push(name);
           continue;
         }
 
@@ -166,6 +182,7 @@ export function registerMapIpc(): void {
       return {
         systems: Array.from(overlayMap.values()),
         alnPairs,
+        upgradeIcons,
       };
     },
   );

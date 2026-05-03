@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS upgrades (
   workforce        INTEGER NOT NULL,
   superionic_ice   INTEGER NOT NULL,
   magmatic_gas     INTEGER NOT NULL,
-  startup          INTEGER NOT NULL
+  startup          INTEGER NOT NULL,
+  icon             BLOB
 );
 
 -- ===== Plan tables (user-mutable) =====

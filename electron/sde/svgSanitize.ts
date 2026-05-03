@@ -63,8 +63,20 @@ export function loadLegendIcons(srcRoot: string): LegendIcons {
 export function sanitizeDotlanSvg(raw: string, icons?: LegendIcons): string {
   let svg = raw;
 
+  // Strip glow group and all its contents — volatile live data (campaigns, incursions).
+  svg = svg.replace(/<g\s[^>]*id="glow"[^>]*>[\s\S]*?<\/g>/g, '');
+
   // Strip alliance/NPC affiliation text labels (<text class="st">).
   svg = svg.replace(/<text[^>]*class="st"[^>]*>[\s\S]*?<\/text>/g, '');
+
+  // Strip ongoing sov campaign markers (class="sc") — volatile live data.
+  svg = svg.replace(/<text[^>]*class="sc"[^>]*>[\s\S]*?<\/text>/g, '');
+  svg = svg.replace(new RegExp('<circle[^>]*class="sc"[^>]*/>', 'g'), '');
+
+  // Strip incursion overlays (class="ic") — volatile live data.
+  svg = svg.replace(/<text[^>]*class="ic"[^>]*>[\s\S]*?<\/text>/g, '');
+  svg = svg.replace(new RegExp('<circle[^>]*class="ic"[^>]*/>', 'g'), '');
+  svg = svg.replace(new RegExp('<rect[^>]*class="ic"[^>]*/>', 'g'), '');
 
   // Strip dotlan hyperlink anchors — not useful in the app context.
   svg = svg.replace(/<a\s[^>]*xlink:href[^>]*>/g, '');

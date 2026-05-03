@@ -197,7 +197,27 @@ export async function importPlanetsCsv(
   return { counts: { planets: imported }, warnings };
 }
 
-export async function importUpgradesCsv(db: DB, path: string): Promise<ImportReport> {
+async function resolveUpgradeIds(
+  names: string[],
+  downloader: (url: string, body?: string) => Promise<Buffer>
+): Promise<Map<string, number>> {
+  const buf = await downloader(
+    'https://esi.evetech.net/latest/universe/ids/?datasource=tranquility&language=en',
+    JSON.stringify(names)
+  );
+  const data = JSON.parse(buf.toString('utf8')) as { inventory_types?: { id: number; name: string }[] };
+  const map = new Map<string, number>();
+  for (const item of data.inventory_types ?? []) {
+    map.set(item.name, item.id);
+  }
+  return map;
+}
+
+export async function importUpgradesCsv(
+  db: DB,
+  path: string,
+  downloader?: (url: string, body?: string) => Promise<Buffer>
+): Promise<ImportReport> {
   const rows = await parseCsv<UpgradesCsvRow>(path);
   const warnings: ImportWarning[] = [];
 
@@ -236,6 +256,37 @@ export async function importUpgradesCsv(db: DB, path: string): Promise<ImportRep
     });
   });
   txn();
+
+  if (downloader) {
+    const names = rows.map((r) => (r.Upgrade ?? '').trim()).filter(Boolean);
+    let idMap = new Map<string, number>();
+    try {
+      idMap = await resolveUpgradeIds(names, downloader);
+      console.log(`[seed] resolved ${idMap.size}/${names.length} upgrade IDs from ESI`);
+    } catch (err) {
+      warnings.push({ source: 'esi', file: 'universe/ids', row: 0, message: `ID lookup failed: ${String(err)}` });
+    }
+
+    const setIcon = db.prepare(`UPDATE upgrades SET icon = ? WHERE name = ?`);
+    let iconsFetched = 0;
+    let iconsSkipped = 0;
+
+    for (const [name, typeId] of idMap) {
+      const url = `https://images.evetech.net/types/${typeId}/icon?size=64`;
+      try {
+        const iconBuf = await downloader(url);
+        setIcon.run(iconBuf, name);
+        iconsFetched++;
+      } catch (err) {
+        warnings.push({ source: 'esi', file: url, row: 0, message: `icon fetch failed: ${String(err)}` });
+        iconsSkipped++;
+      }
+      await new Promise((r) => setTimeout(r, 50));
+    }
+
+    console.log(`[seed] upgrade icons: ${iconsFetched} fetched, ${iconsSkipped} skipped`);
+    return { counts: { upgrades: imported, upgradeIcons: iconsFetched }, warnings };
+  }
 
   return { counts: { upgrades: imported }, warnings };
 }

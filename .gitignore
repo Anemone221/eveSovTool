@@ -8,3 +8,5 @@ resources/seed.db
 .vscode/
 .idea/
 *.tsbuildinfo
+**/**/seed.db
+**/**/seed.db.*

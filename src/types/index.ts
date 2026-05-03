@@ -143,13 +143,14 @@ export interface ImportCounts {
     stars?: number;
     planets?: number;
     upgrades?: number;
+    upgradeIcons?: number;
     stargates?: number;
     svgMaps?: number;
     svgSkipped?: number;
 }
 
 export interface ImportWarning {
-    source: "sde" | "csv";
+    source: "sde" | "csv" | "esi";
     file: string;
     row: number;
     message: string;
@@ -251,11 +252,13 @@ export interface MapSystemOverlay {
     hasCynoBeacon: boolean;
     hasCynoJammer: boolean;
     hasRelicSites: boolean;
+    relicUpgrades: string[];
 }
 
 export interface MapOverlayData {
     systems: MapSystemOverlay[];
     alnPairs: [number, number][];
+    upgradeIcons: Record<string, string>;
 }
 
 export interface MapAuraData {

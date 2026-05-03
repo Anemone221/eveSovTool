@@ -58,40 +58,44 @@ function mergeReports(parts: ImportReport[]): ImportReport {
     return { counts, warnings };
 }
 
-function downloadToBuffer(url: string): Promise<Buffer> {
+function downloadToBuffer(url: string, body?: string): Promise<Buffer> {
     return new Promise((resolveP, rejectP) => {
-        const follow = (target: string, redirects: number) => {
-            if (redirects > 5) {
-                rejectP(new Error("Too many redirects"));
+        const parsed = new URL(url);
+        const isPost = body !== undefined;
+        const options: import("node:https").RequestOptions = {
+            hostname: parsed.hostname,
+            path: parsed.pathname + parsed.search,
+            method: isPost ? 'POST' : 'GET',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
+                ...(isPost ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body!) } : {}),
+            },
+        };
+        const req = https.request(options, (res) => {
+            if (
+                res.statusCode &&
+                res.statusCode >= 300 &&
+                res.statusCode < 400 &&
+                res.headers.location
+            ) {
+                res.resume();
+                // Redirects on POST fall back to GET
+                downloadToBuffer(res.headers.location).then(resolveP, rejectP);
                 return;
             }
-            https
-                .get(target, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36' } }, (res) => {
-                    if (
-                        res.statusCode &&
-                        res.statusCode >= 300 &&
-                        res.statusCode < 400 &&
-                        res.headers.location
-                    ) {
-                        follow(res.headers.location, redirects + 1);
-                        res.resume();
-                        return;
-                    }
-                    if (res.statusCode !== 200) {
-                        rejectP(
-                            new Error(`HTTP ${res.statusCode} from ${target}`),
-                        );
-                        res.resume();
-                        return;
-                    }
-                    const chunks: Buffer[] = [];
-                    res.on("data", (chunk: Buffer) => chunks.push(chunk));
-                    res.on("end", () => resolveP(Buffer.concat(chunks)));
-                    res.on("error", rejectP);
-                })
-                .on("error", rejectP);
-        };
-        follow(url, 0);
+            if (res.statusCode !== 200) {
+                rejectP(new Error(`HTTP ${res.statusCode} from ${url}`));
+                res.resume();
+                return;
+            }
+            const chunks: Buffer[] = [];
+            res.on("data", (chunk: Buffer) => chunks.push(chunk));
+            res.on("end", () => resolveP(Buffer.concat(chunks)));
+            res.on("error", rejectP);
+        });
+        req.on("error", rejectP);
+        if (isPost) req.write(body!);
+        req.end();
     });
 }
 
@@ -271,7 +275,7 @@ async function main() {
         );
 
         console.log("[seed] importing sovUpgardes.csv...");
-        const upgradesReport = await importUpgradesCsv(db, csvPaths.upgrades);
+        const upgradesReport = await importUpgradesCsv(db, csvPaths.upgrades, downloadToBuffer);
 
         console.log("[seed] importing mapStargates.jsonl...");
         const stargatesReport = await importStargates(db, sdeFiles.get("mapStargates.jsonl")!);
