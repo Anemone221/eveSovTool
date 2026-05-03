@@ -75,6 +75,7 @@ const api: EveSovApi = {
     getConfig: () => ipcRenderer.invoke('exports.getConfig'),
     setConfig: (key, value) => ipcRenderer.invoke('exports.setConfig', key, value),
     exportDna: (planId) => ipcRenderer.invoke('exports.exportDna', planId),
+    exportDnaText: (planId) => ipcRenderer.invoke('exports.exportDnaText', planId),
     importDna: (dna) => ipcRenderer.invoke('exports.importDna', dna)
   },
   structures: {

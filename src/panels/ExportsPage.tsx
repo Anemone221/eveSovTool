@@ -81,7 +81,19 @@ export function ExportsPage(): JSX.Element {
     try {
       const { dna } = await evesov.exports.exportDna(activePlanId);
       await navigator.clipboard.writeText(dna);
-      setDnaMessage({ kind: 'ok', text: `Copied DNA to clipboard (${dna.length} chars).` });
+      setDnaMessage({ kind: 'ok', text: `Copied compact DNA to clipboard (${dna.length} chars).` });
+      await refreshLog();
+    } catch (err) {
+      setDnaMessage({ kind: 'err', text: (err as Error).message });
+    }
+  }, [activePlanId, refreshLog]);
+
+  const onExportDnaText = useCallback(async () => {
+    if (activePlanId === null) return;
+    try {
+      const { dna } = await evesov.exports.exportDnaText(activePlanId);
+      await navigator.clipboard.writeText(dna);
+      setDnaMessage({ kind: 'ok', text: `Copied text DNA to clipboard (${dna.length} chars).` });
       await refreshLog();
     } catch (err) {
       setDnaMessage({ kind: 'err', text: (err as Error).message });
@@ -91,11 +103,17 @@ export function ExportsPage(): JSX.Element {
   const onImportDna = useCallback(async () => {
     try {
       const text = await navigator.clipboard.readText();
-      if (!text || !text.startsWith('ESOV1')) {
-        setDnaMessage({ kind: 'err', text: 'Clipboard does not contain an ESOV1 DNA string.' });
+      const trimmed = text?.trim() ?? '';
+      const recognised =
+        trimmed.startsWith('ESOV1') || trimmed.startsWith('ESOV2B') || trimmed.startsWith('ESOV2T');
+      if (!recognised) {
+        setDnaMessage({
+          kind: 'err',
+          text: 'Clipboard does not contain a recognised DNA string (ESOV1, ESOV2B, or ESOV2T).'
+        });
         return;
       }
-      const result = await evesov.exports.importDna(text);
+      const result = await evesov.exports.importDna(trimmed);
       setDnaMessage({ kind: 'ok', text: `Imported plan "${result.name}" (id ${result.planId}).` });
       await refreshLog();
     } catch (err) {
@@ -238,6 +256,9 @@ export function ExportsPage(): JSX.Element {
           <button type="button" className="exports__btn" onClick={() => void onExportDna()}>
             Export DNA → clipboard
           </button>
+          <button type="button" className="exports__btn" onClick={() => void onExportDnaText()}>
+            Copy as text
+          </button>
           <button type="button" className="exports__btn" onClick={() => void onImportDna()}>
             Import from clipboard
           </button>
@@ -248,8 +269,9 @@ export function ExportsPage(): JSX.Element {
           </div>
         )}
         <p className="exports__dna-hint">
-          DNA strings start with <code>ESOV1</code>. Imported plans are validated against your local
-          seed database; unknown systems or upgrades are rejected.
+          The compact form starts with <code>ESOV2B</code>; the readable text form starts with{' '}
+          <code>ESOV2T</code>. Older <code>ESOV1</code> strings still import. Imported plans are
+          validated against your local seed database; unknown systems or upgrades are rejected.
         </p>
       </section>
 
