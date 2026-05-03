@@ -32,29 +32,17 @@ jobs:
               with:
                 format: YYYYMMDD-HHmm
                 utcOffset: "+00:00"
-            
+
             - name: Release
-              uses: actions/create-release@v1
-              id: create_release
+              uses: softprops/action-gh-release@v2
               with:
                 draft: false
                 prerelease: true
-                release_name: ${{ steps.current-time.outputs.formattedTime }}-BETA
+                name: ${{ steps.current-time.outputs.formattedTime }}-BETA
                 tag_name: ${{ steps.current-time.outputs.formattedTime }}-BETA
+                files: |
+                  dist/*.exe
+                  dist/*.zip
               env:
                 GITHUB_TOKEN: ${{ github.token }}
-
-            - name: Upload installer
-              uses: actions/upload-artifact@v4
-              with:
-                upload_url: ${{ steps.create_release.outputs.upload_url }}
-                name: eve-sov-tool-win-installer
-                path: dist/*.exe
-
-            - name: Upload portable zip
-              uses: actions/upload-artifact@v4
-              with:
-                upload_url: ${{ steps.create_release.outputs.upload_url }}
-                name: eve-sov-tool-win-portable
-                path: dist/*.zip
 
