@@ -37,3 +37,20 @@ jobs:
               with:
                   name: eve-sov-tool-win-portable
                   path: dist/*.zip
+
+             - name: Get current time
+                uses: josStorer/get-current-time@v2
+                id: current-time
+                with:
+                format: YYYYMMDD-HH
+                utcOffset: "+00:00"
+            
+            - name: Release
+              uses: actions/create-release@v1
+              with:
+                draft: false
+                prerelease: true
+                release_name: ${{ steps.current-time.outputs.time }} BETA
+                tag_name: BETA
+              env:
+                GITHUB_TOKEN: ${{ github.token }}
