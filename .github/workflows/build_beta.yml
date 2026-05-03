@@ -30,7 +30,7 @@ jobs:
               uses: josStorer/get-current-time@v2
               id: current-time
               with:
-                format: YYYYMMDD-HH
+                format: YYYYMMDD-HHmm
                 utcOffset: "+00:00"
             
             - name: Release
@@ -39,7 +39,8 @@ jobs:
               with:
                 draft: false
                 prerelease: true
-                release_name: ${{ steps.current-time.outputs.time }} BETA
+                release_name: ${{ steps.current-time.outputs.formattedTime }}-BETA
+                tag_name: ${{ steps.current-time.outputs.formattedTime }}-BETA
               env:
                 GITHUB_TOKEN: ${{ github.token }}
 
