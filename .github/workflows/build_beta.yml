@@ -29,19 +29,19 @@ jobs:
             - name: Upload installer
               uses: actions/upload-artifact@v4
               with:
-                  name: eve-sov-tool-win-installer
-                  path: dist/*.exe
+                name: eve-sov-tool-win-installer
+                path: dist/*.exe
 
             - name: Upload portable zip
               uses: actions/upload-artifact@v4
               with:
-                  name: eve-sov-tool-win-portable
-                  path: dist/*.zip
+                name: eve-sov-tool-win-portable
+                path: dist/*.zip
 
-             - name: Get current time
-                uses: josStorer/get-current-time@v2
-                id: current-time
-                with:
+            - name: Get current time
+              uses: josStorer/get-current-time@v2
+              id: current-time
+              with:
                 format: YYYYMMDD-HH
                 utcOffset: "+00:00"
             
