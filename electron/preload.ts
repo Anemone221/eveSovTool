@@ -90,6 +90,9 @@ const api: EveSovApi = {
   },
   events: {
     on: (channel, listener) => {
+      // Many panels subscribe to broadcast channels simultaneously; raise the
+      // limit so Node doesn't emit spurious memory-leak warnings.
+      ipcRenderer.setMaxListeners(0);
       const wrapped = (_: unknown, payload: unknown) => listener(payload);
       ipcRenderer.on(channel, wrapped);
       return () => ipcRenderer.off(channel, wrapped);
