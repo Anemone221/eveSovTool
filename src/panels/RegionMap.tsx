@@ -6,7 +6,7 @@ import { useOpsec } from '@/state/opsecStore';
 import { useExportRegistry } from '@/state/exportRegistry';
 import { buildExportFilename } from '@/data/exportFilename';
 import { withOpsecCapture } from '@/data/opsecCapture';
-import type { MapOverlayData, MapAuraData, TreeNodeRegion } from '@shared/index';
+import type { MapOverlayData, MapAuraData, TreeNodeRegion, MapSystemOverlay } from '@shared/index';
 import {
   STRUCTURE_ICONS,
   STABILITY_ICONS,
@@ -20,6 +20,10 @@ import {
 import { siteEffectsFor, aggregateGrants, formatGrants } from '@/data/effects';
 
 const MAP_PREFS_KEY = 'map.selectedRegionId';
+const LEGEND_PREFS_KEY = 'map.showLegend';
+const STAT_PREFS_KEY = 'map.statMode';
+// Gap between original map content and legend column — must match svgSanitize.ts LEGEND_MARGIN.
+const LEGEND_MARGIN = 10;
 // Dotlan system node: <use x y> places top-left of the 56×28 symbol.
 // Center confirmed by jump line coords: cx = use.x + 28.5, cy = use.y + 14.5
 const NODE_CX = 28.5;
@@ -28,6 +32,36 @@ const NODE_H = 28;
 // Padding added to the SVG viewBox on all sides so overlay icons (rendered outside
 // the base node bounds) are never clipped by the viewport edge.
 const SVG_MARGIN = 24;
+
+type StatMode = 'none' | 'haven' | 'forsaken-hub' | 'ishtar' | 'rally-point' | 'true-sec';
+
+function extractStat(sys: MapSystemOverlay, mode: StatMode): string {
+  if (mode === 'none') return '';
+  if (mode === 'true-sec') {
+    return sys.trueSec !== null ? sys.trueSec.toFixed(2) : '';
+  }
+  if (!sys.hasCombatSites) return '';
+  const grants = aggregateGrants(sys.combatUpgrades.map((u) => siteEffectsFor(u, sys.trueSec)));
+  if (mode === 'haven') {
+    const n = grants.find((g) => g.site === 'Haven')?.count ?? 0;
+    return n > 0 ? String(n) : '';
+  }
+  if (mode === 'forsaken-hub') {
+    const n = grants.find((g) => g.site === 'Forsaken Hub')?.count ?? 0;
+    return n > 0 ? String(n) : '';
+  }
+  if (mode === 'ishtar') {
+    const h = grants.find((g) => g.site === 'Haven')?.count ?? 0;
+    const f = grants.find((g) => g.site === 'Forsaken Hub')?.count ?? 0;
+    const total = h + f;
+    return total > 0 ? String(total) : '';
+  }
+  if (mode === 'rally-point') {
+    const n = grants.find((g) => g.site === 'Rally Point')?.count ?? 0;
+    return n > 0 ? String(n) : '';
+  }
+  return '';
+}
 
 export function RegionMap() {
   const activePlanId = useUi((s) => s.activePlanId);
@@ -41,6 +75,8 @@ export function RegionMap() {
   const [overlay, setOverlay] = useState<MapOverlayData | null>(null);
   const [auraData, setAuraData] = useState<MapAuraData | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [showLegend, setShowLegend] = useState(true);
+  const [statMode, setStatMode] = useState<StatMode>('none');
 
   // System SVG positions parsed from the dotlan <use> elements.
   const [positions, setPositions] = useState<Map<number, { x: number; y: number }>>(new Map());
@@ -106,13 +142,22 @@ export function RegionMap() {
     }
   }, [selectedSystemId, tree]);
 
-  // Restore persisted region selection (only used as fallback before plan data loads).
+  // Restore persisted prefs (region, legend visibility, stat mode).
   useEffect(() => {
     evesov.prefs.get(MAP_PREFS_KEY).then((v) => {
       if (v) {
         const n = Number(v);
         if (Number.isFinite(n)) setSelectedRegionId((prev) => prev ?? n);
       }
+    }).catch(console.error);
+
+    evesov.prefs.get(LEGEND_PREFS_KEY).then((v) => {
+      if (v !== null) setShowLegend(v !== 'false');
+    }).catch(console.error);
+
+    evesov.prefs.get(STAT_PREFS_KEY).then((v) => {
+      const valid: StatMode[] = ['none', 'haven', 'forsaken-hub', 'ishtar', 'rally-point', 'true-sec'];
+      if (v && valid.includes(v as StatMode)) setStatMode(v as StatMode);
     }).catch(console.error);
   }, []);
 
@@ -126,7 +171,7 @@ export function RegionMap() {
     evesov.map.regionSvg(selectedRegionId).then(setSvgContent).catch(console.error);
   }, [selectedRegionId]);
 
-  // Parse system positions after SVG is injected into the DOM
+  // Parse system positions and expand viewBox by SVG_MARGIN after SVG is injected into the DOM.
   useEffect(() => {
     if (!svgContent || !svgContainerRef.current) return;
     const frame = requestAnimationFrame(() => {
@@ -163,9 +208,45 @@ export function RegionMap() {
     return () => cancelAnimationFrame(frame);
   }, [svgContent]);
 
+  // Show or hide the legend by cropping the viewBox and toggling display on #legend.
+  // Runs after SVG_MARGIN has been applied (separate RAF so it reads the updated viewBox).
+  useEffect(() => {
+    if (!svgContent || !svgContainerRef.current) return;
+    const frame = requestAnimationFrame(() => {
+      const svgEl = svgContainerRef.current?.querySelector('svg');
+      if (!svgEl) return;
+      const legendG = svgEl.querySelector<SVGGElement>('#legend');
+      if (!legendG) return;
+
+      if (showLegend) {
+        legendG.removeAttribute('display');
+        // viewBox is left as-is — it already includes the legend strip from seed time
+        // plus the SVG_MARGIN expansion applied by the positions effect.
+      } else {
+        legendG.setAttribute('display', 'none');
+        // Crop the viewBox to remove the dead legend strip.
+        // The legend <rect> x tells us where the legend column starts.
+        const legendRect = legendG.querySelector('rect');
+        if (legendRect) {
+          const legendX = parseFloat(legendRect.getAttribute('x') ?? '0');
+          const vb = svgEl.getAttribute('viewBox');
+          if (vb) {
+            const [vbX, vbY, , vbH] = vb.split(' ').map(Number);
+            // Original map width = legendX − LEGEND_MARGIN − vbX.
+            // SVG_MARGIN was subtracted from vbX, so legendX is still correct
+            // relative to the original content — no adjustment needed.
+            const origW = legendX - LEGEND_MARGIN - vbX;
+            svgEl.setAttribute('viewBox', `${vbX} ${vbY} ${origW} ${vbH}`);
+          }
+        }
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [svgContent, showLegend]);
+
   // Inject overlay <g> directly into the dotlan SVG so coordinates share the same space.
   // Depends on positions (state) so it re-runs once positions are parsed, and also when
-  // overlay/auraData arrive. positionsRef gives the current map without stale-closure risk.
+  // overlay/auraData/statMode arrive. positionsRef gives the current map without stale-closure risk.
   useEffect(() => {
     const container = svgContainerRef.current;
     if (!container || !overlay || !auraData || positions.size === 0) return;
@@ -279,7 +360,7 @@ export function RegionMap() {
     const dbIconAny = (names: string[], fallback: string): string =>
       names.map((n) => overlay.upgradeIcons[n]).find(Boolean) ?? fallback;
 
-    // 3. Per-system icons (above system nodes)
+    // 3. Per-system icons (above system nodes) and stat labels (below).
     for (const sys of overlay.systems) {
       const p = pos.get(sys.systemId);
       if (!p) continue;
@@ -336,6 +417,24 @@ export function RegionMap() {
       if (upgradeIcons.length > 0) {
         addIconRow(upgradeIcons, cx, p.y + NODE_H + 2, upgradeTips);
       }
+
+      // Stat label inside the node, in the lower band where alliance text used to appear.
+      if (statMode !== 'none') {
+        const label = extractStat(sys, statMode);
+        if (label) {
+          const txt = document.createElementNS(NS, 'text');
+          txt.setAttribute('x', String(cx));
+          // Node is 28px tall; system name sits ~y+10. Alliance text was ~y+22.
+          txt.setAttribute('y', String(p.y + 22));
+          txt.setAttribute('text-anchor', 'middle');
+          txt.setAttribute('font-size', '8');
+          txt.setAttribute('font-weight', 'bold');
+          txt.setAttribute('fill', '#d8dee9');
+          txt.setAttribute('pointer-events', 'none');
+          txt.textContent = label;
+          g.appendChild(txt);
+        }
+      }
     }
 
     svgEl.appendChild(g);
@@ -345,7 +444,7 @@ export function RegionMap() {
       svgEl.querySelector('#evesov-lines')?.remove();
       svgEl.querySelector('#evesov-overlay')?.remove();
     };
-  }, [overlay, auraData, positions]);
+  }, [overlay, auraData, positions, statMode]);
 
   // Fetch overlay + aura data when plan or region changes
   const fetchOverlayData = useCallback(() => {
@@ -494,6 +593,31 @@ export function RegionMap() {
           {planRegions.map((r) => (
             <option key={r.id} value={r.id}>{r.name}</option>
           ))}
+        </select>
+        <button
+          type="button"
+          className={`region-map__legend-btn${showLegend ? ' region-map__legend-btn--active' : ''}`}
+          onClick={() => {
+            const next = !showLegend;
+            setShowLegend(next);
+            void evesov.prefs.set(LEGEND_PREFS_KEY, String(next));
+          }}
+        >Legend</button>
+        <select
+          className="region-map__stat-select"
+          value={statMode}
+          onChange={(e) => {
+            const v = e.target.value as StatMode;
+            setStatMode(v);
+            void evesov.prefs.set(STAT_PREFS_KEY, v);
+          }}
+        >
+          <option value="none">Stats: None</option>
+          <option value="haven">Haven Count</option>
+          <option value="forsaken-hub">Forsaken Hub Count</option>
+          <option value="ishtar">Ishtar Capable</option>
+          <option value="rally-point">Rally Point Count</option>
+          <option value="true-sec">True Sec</option>
         </select>
         <OpsecPill />
         <button
