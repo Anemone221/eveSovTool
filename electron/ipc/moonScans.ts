@@ -20,7 +20,7 @@ const ORE_TIERS: [string, 4 | 8 | 16 | 32 | 64][] = [
   ['Sperrylite', 16],
   ['Chromite', 16],
   ['Otavite', 16],
-  ['Vanadium', 16],
+  ['Vanadinite', 16],
   // R32
   ['Carnotite', 32],
   ['Zircon', 32],

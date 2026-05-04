@@ -18,7 +18,7 @@ function tierLabel(oreType: string): string {
   const tiers: [string, number][] = [
     ['zeolites', 4], ['bitumens', 4], ['sylvite', 4], ['coesite', 4],
     ['scheelite', 8], ['titanite', 8], ['cobaltite', 8], ['euxenite', 8],
-    ['sperrylite', 16], ['chromite', 16], ['otavite', 16], ['vanadium', 16],
+    ['sperrylite', 16], ['chromite', 16], ['otavite', 16], ['vanadinite', 16],
     ['carnotite', 32], ['zircon', 32], ['pollucite', 32], ['cinnabar', 32],
     ['monazite', 64], ['loparite', 64], ['xenotime', 64], ['ytterbite', 64],
   ];

@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS moon_scans (
 |------|------|
 | R4   | Zeolites, Bitumens, Sylvite, Coesite |
 | R8   | Scheelite, Titanite, Cobaltite, Euxenite |
-| R16  | Sperrylite, Chromite, Otavite, Vanadium |
+| R16  | Sperrylite, Chromite, Otavite, Vanadinite |
 | R32  | Carnotite, Zircon, Pollucite, Cinnabar |
 | R64  | Monazite, Loparite, Xenotime, Ytterbite |
 

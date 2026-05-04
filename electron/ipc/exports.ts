@@ -1,5 +1,6 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron';
 import { writeFile } from 'node:fs/promises';
+import { deflateRawSync, inflateRawSync } from 'node:zlib';
 import path from 'node:path';
 import { getDb } from '../db/userDb.js';
 import { oreRTier } from './moonScans.js';
@@ -538,7 +539,8 @@ export function registerExportsIpc(): void {
 
     // Compact representation: array of [system_id, moon_number, ore_type, ore_percent]
     const payload = rows.map((r) => [r.system_id, r.moon_number, r.ore_type, r.ore_percent]);
-    const data = 'ESOVMS1' + Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
+    const compressed = deflateRawSync(Buffer.from(JSON.stringify(payload), 'utf8'));
+    const data = 'ESOVMS1' + compressed.toString('base64');
     return { data };
   });
 
@@ -550,7 +552,8 @@ export function registerExportsIpc(): void {
 
     let payload: unknown;
     try {
-      payload = JSON.parse(Buffer.from(raw.slice(7), 'base64').toString('utf8'));
+      const decompressed = inflateRawSync(Buffer.from(raw.slice(7), 'base64'), { maxOutputLength: 10 * 1024 * 1024 });
+      payload = JSON.parse(decompressed.toString('utf8'));
     } catch {
       throw new Error('Moon scan data decode failed.');
     }
