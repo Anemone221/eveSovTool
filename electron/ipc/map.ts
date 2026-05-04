@@ -222,21 +222,32 @@ export function registerMapIpc(): void {
       if (planSystemIds.size === 0) return {};
 
       // Fetch all moon scan rows for these systems
-      type MoonRow = { system_id: number; ore_type: string };
+      type MoonRow = { system_id: number; moon_number: number; ore_type: string };
       const placeholders = [...planSystemIds].map(() => '?').join(',');
       const moonRows = db.prepare(`
-        SELECT system_id, ore_type FROM moon_scans WHERE system_id IN (${placeholders})
+        SELECT system_id, moon_number, ore_type FROM moon_scans WHERE system_id IN (${placeholders})
       `).all(...planSystemIds) as MoonRow[];
 
-      const result: Record<number, MoonCounts> = {};
-      for (const { system_id, ore_type } of moonRows) {
+      // Group by (system_id, moon_number) first, then determine each moon's
+      // highest R-tier from its materials and count moons per tier.
+      type MoonKey = string; // `${system_id}:${moon_number}`
+      const moonBestTier = new Map<MoonKey, 4 | 8 | 16 | 32 | 64>();
+      for (const { system_id, moon_number, ore_type } of moonRows) {
         const tier = oreRTier(ore_type);
         if (!tier) continue;
+        const key: MoonKey = `${system_id}:${moon_number}`;
+        const current = moonBestTier.get(key) ?? 0;
+        if (tier > current) moonBestTier.set(key, tier);
+      }
+
+      const result: Record<number, MoonCounts> = {};
+      for (const [key, tier] of moonBestTier) {
+        const system_id = Number(key.split(':')[0]);
         if (!result[system_id]) {
           result[system_id] = { r4: 0, r8: 0, r16: 0, r32: 0, r64: 0 };
         }
-        const key = `r${tier}` as keyof MoonCounts;
-        result[system_id][key]++;
+        const countKey = `r${tier}` as keyof MoonCounts;
+        result[system_id][countKey]++;
       }
 
       return result;
