@@ -85,6 +85,19 @@ export function registerMapIpc(): void {
         .all(regionId) as SecRow[];
       const secMap = new Map<number, number | null>(secRows.map((r) => [r.id, r.security_status]));
 
+      // Planet types per system in this region (for PI tier calculation in the renderer)
+      type PlanetTypeRow = { system_id: number; planet_type: string | null };
+      const planetTypeRows = db
+        .prepare('SELECT system_id, planet_type FROM planets WHERE system_id IN (SELECT id FROM systems WHERE region_id = ?)')
+        .all(regionId) as PlanetTypeRow[];
+      const planetTypeMap = new Map<number, string[]>();
+      for (const { system_id, planet_type } of planetTypeRows) {
+        if (!planet_type) continue;
+        const list = planetTypeMap.get(system_id);
+        if (list) list.push(planet_type);
+        else planetTypeMap.set(system_id, [planet_type]);
+      }
+
       // Build per-system overlay map
       const overlayMap = new Map<number, MapSystemOverlay>();
 
@@ -105,6 +118,7 @@ export function registerMapIpc(): void {
             hasRelicSites: false,
             relicUpgrades: [],
             moonCounts: null,
+            planetTypes: planetTypeMap.get(systemId) ?? [],
           });
         }
         return overlayMap.get(systemId)!;

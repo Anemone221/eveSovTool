@@ -18,6 +18,8 @@ import {
   relicSite,
 } from '@/data/mapIcons';
 import { siteEffectsFor, aggregateGrants, formatGrants } from '@/data/effects';
+import { producibleFromPlanets, highestProducibleTier } from '@/data/piRecipes';
+import type { PlanetType } from '@/data/piRecipes';
 
 const MAP_PREFS_KEY = 'map.selectedRegionId';
 const LEGEND_PREFS_KEY = 'map.showLegend';
@@ -45,11 +47,14 @@ type StatMode =
   | 'moon-r16'
   | 'moon-r32'
   | 'moon-r64'
-  | 'moon-best';
+  | 'moon-best'
+  | 'pi-tier'
+  | 'forsaken-sanctum';
 
 const VALID_STAT_MODES: StatMode[] = [
   'none', 'haven', 'forsaken-hub', 'ishtar', 'rally-point', 'true-sec',
   'moon-r4', 'moon-r8', 'moon-r16', 'moon-r32', 'moon-r64', 'moon-best',
+  'pi-tier', 'forsaken-sanctum',
 ];
 
 function extractStat(sys: MapSystemOverlay, mode: StatMode): string {
@@ -77,6 +82,12 @@ function extractStat(sys: MapSystemOverlay, mode: StatMode): string {
     return '';
   }
 
+  if (mode === 'pi-tier') {
+    if (sys.planetTypes.length === 0) return '';
+    const tier = highestProducibleTier(producibleFromPlanets(sys.planetTypes as PlanetType[]));
+    return tier > 0 ? `P${tier}` : '';
+  }
+
   if (!sys.hasCombatSites) return '';
   const grants = aggregateGrants(sys.combatUpgrades.map((u) => siteEffectsFor(u, sys.trueSec)));
   if (mode === 'haven') {
@@ -95,6 +106,10 @@ function extractStat(sys: MapSystemOverlay, mode: StatMode): string {
   }
   if (mode === 'rally-point') {
     const n = grants.find((g) => g.site === 'Rally Point')?.count ?? 0;
+    return n > 0 ? String(n) : '';
+  }
+  if (mode === 'forsaken-sanctum') {
+    const n = grants.find((g) => g.site === 'Forsaken Sanctum')?.count ?? 0;
     return n > 0 ? String(n) : '';
   }
   return '';
@@ -697,6 +712,7 @@ export function RegionMap() {
           <option value="forsaken-hub">Forsaken Hub Count</option>
           <option value="ishtar">Ishtar Capable</option>
           <option value="rally-point">Rally Point Count</option>
+          <option value="forsaken-sanctum">Forsaken Sanctum Count</option>
           <option value="true-sec">True Sec</option>
           <option value="moon-r4">Moon: R4 Count</option>
           <option value="moon-r8">Moon: R8 Count</option>
@@ -704,6 +720,7 @@ export function RegionMap() {
           <option value="moon-r32">Moon: R32 Count</option>
           <option value="moon-r64">Moon: R64 Count</option>
           <option value="moon-best">Moon: Best Tier</option>
+          <option value="pi-tier">PI: Highest Tier</option>
         </select>
         <OpsecPill />
         <button

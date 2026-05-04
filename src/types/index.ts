@@ -280,6 +280,7 @@ export interface MapSystemOverlay {
     hasRelicSites: boolean;
     relicUpgrades: string[];
     moonCounts: MoonCounts | null;
+    planetTypes: string[];
 }
 
 export interface MapOverlayData {

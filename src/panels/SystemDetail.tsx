@@ -430,7 +430,7 @@ export function SystemDetail() {
                 />
                 <BudgetBar
                     label="Workforce"
-                    available={budget.availableWorkforce}
+                    available={balance?.availableWorkforce ?? budget.availableWorkforce}
                     consumed={balance?.consumedWorkforce ?? 0}
                     mode="consumed"
                 />
