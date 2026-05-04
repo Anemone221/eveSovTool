@@ -81,6 +81,9 @@ export function RegionMap() {
   // System SVG positions parsed from the dotlan <use> elements.
   const [positions, setPositions] = useState<Map<number, { x: number; y: number }>>(new Map());
   const positionsRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  // Stores the viewBox string after SVG_MARGIN expansion so the legend effect can
+  // restore it exactly when re-enabling the legend after it was hidden.
+  const fullViewBoxRef = useRef<string | null>(null);
 
   const svgContainerRef = useRef<HTMLDivElement>(null);
 
@@ -182,10 +185,9 @@ export function RegionMap() {
         const vb = svgEl.getAttribute('viewBox');
         if (vb) {
           const [x, y, w, h] = vb.split(' ').map(Number);
-          svgEl.setAttribute(
-            'viewBox',
-            `${x - SVG_MARGIN} ${y - SVG_MARGIN} ${w + SVG_MARGIN * 2} ${h + SVG_MARGIN * 2}`,
-          );
+          const expanded = `${x - SVG_MARGIN} ${y - SVG_MARGIN} ${w + SVG_MARGIN * 2} ${h + SVG_MARGIN * 2}`;
+          svgEl.setAttribute('viewBox', expanded);
+          fullViewBoxRef.current = expanded;
         }
       }
 
@@ -220,8 +222,9 @@ export function RegionMap() {
 
       if (showLegend) {
         legendG.removeAttribute('display');
-        // viewBox is left as-is — it already includes the legend strip from seed time
-        // plus the SVG_MARGIN expansion applied by the positions effect.
+        if (fullViewBoxRef.current) {
+          svgEl.setAttribute('viewBox', fullViewBoxRef.current);
+        }
       } else {
         legendG.setAttribute('display', 'none');
         // Crop the viewBox to remove the dead legend strip.
