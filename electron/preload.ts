@@ -76,7 +76,9 @@ const api: EveSovApi = {
     setConfig: (key, value) => ipcRenderer.invoke('exports.setConfig', key, value),
     exportDna: (planId) => ipcRenderer.invoke('exports.exportDna', planId),
     exportDnaText: (planId) => ipcRenderer.invoke('exports.exportDnaText', planId),
-    importDna: (dna) => ipcRenderer.invoke('exports.importDna', dna)
+    importDna: (dna) => ipcRenderer.invoke('exports.importDna', dna),
+    exportMoonScans: (planId) => ipcRenderer.invoke('exports.exportMoonScans', planId),
+    importMoonScans: (data) => ipcRenderer.invoke('exports.importMoonScans', data)
   },
   structures: {
     list: (planId, systemId?) => ipcRenderer.invoke('structures.list', planId, systemId),
@@ -88,6 +90,13 @@ const api: EveSovApi = {
     regionSvg: (regionId) => ipcRenderer.invoke('map.regionSvg', regionId),
     overlayData: (planId, regionId) => ipcRenderer.invoke('map.overlayData', planId, regionId),
     auraData: (planId, regionId) => ipcRenderer.invoke('map.auraData', planId, regionId),
+    moonStats: (planId, regionId) => ipcRenderer.invoke('map.moonStats', planId, regionId),
+  },
+  moonScans: {
+    import: (clipboardText) => ipcRenderer.invoke('moonScans.import', clipboardText),
+    list: (systemId?) => ipcRenderer.invoke('moonScans.list', systemId),
+    sessions: () => ipcRenderer.invoke('moonScans.sessions'),
+    deleteSession: (sessionId) => ipcRenderer.invoke('moonScans.deleteSession', sessionId),
   },
   events: {
     on: (channel, listener) => {

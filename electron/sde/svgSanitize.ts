@@ -58,8 +58,8 @@ export function sanitizeDotlanSvg(raw: string, icons?: LegendIcons): string {
   // Strip glow group and all its contents — volatile live data (campaigns, incursions).
   svg = svg.replace(/<g\s[^>]*id="glow"[^>]*>[\s\S]*?<\/g>/g, '');
 
-  // Strip alliance/NPC affiliation text labels (<text class="st">).
-  svg = svg.replace(/<text[^>]*class="st"[^>]*>[\s\S]*?<\/text>/g, '');
+  // Strip alliance/NPC affiliation text labels (class="st" or "st so" etc.).
+  svg = svg.replace(/<text[^>]*class="[^"]*\bst\b[^"]*"[^>]*>[\s\S]*?<\/text>/g, '');
 
   // Strip ongoing sov campaign markers (class="sc") — volatile live data.
   svg = svg.replace(/<text[^>]*class="sc"[^>]*>[\s\S]*?<\/text>/g, '');

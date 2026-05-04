@@ -170,6 +170,26 @@ CREATE TABLE IF NOT EXISTS export_config (
   value TEXT NOT NULL
 );
 
+-- ===== Moon scans =====
+
+CREATE TABLE IF NOT EXISTS moon_scan_sessions (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  imported_at  TEXT NOT NULL,
+  system_count INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS moon_scans (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id  INTEGER REFERENCES moon_scan_sessions(id) ON DELETE CASCADE,
+  system_id   INTEGER NOT NULL REFERENCES systems(id),
+  moon_number INTEGER NOT NULL,
+  ore_type    TEXT NOT NULL,
+  ore_percent REAL NOT NULL,
+  scan_date   TEXT,
+  UNIQUE(system_id, moon_number, ore_type)
+);
+CREATE INDEX IF NOT EXISTS idx_moon_scans_system ON moon_scans(system_id);
+
 -- ===== Views =====
 
 DROP VIEW IF EXISTS system_budget;

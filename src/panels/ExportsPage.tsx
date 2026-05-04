@@ -100,6 +100,33 @@ export function ExportsPage(): JSX.Element {
     }
   }, [activePlanId, refreshLog]);
 
+  const [moonMessage, setMoonMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  const onExportMoonScans = useCallback(async () => {
+    if (activePlanId === null) return;
+    try {
+      const { data } = await evesov.exports.exportMoonScans(activePlanId);
+      await navigator.clipboard.writeText(data);
+      setMoonMessage({ kind: 'ok', text: `Copied moon scan data to clipboard (${data.length} chars).` });
+    } catch (err) {
+      setMoonMessage({ kind: 'err', text: (err as Error).message });
+    }
+  }, [activePlanId]);
+
+  const onImportMoonScans = useCallback(async () => {
+    try {
+      const text = (await navigator.clipboard.readText())?.trim() ?? '';
+      if (!text.startsWith('ESOVMS1')) {
+        setMoonMessage({ kind: 'err', text: 'Clipboard does not contain moon scan data (expected ESOVMS1).' });
+        return;
+      }
+      const result = await evesov.exports.importMoonScans(text);
+      setMoonMessage({ kind: 'ok', text: `Imported ${result.moonsImported} moon entries across ${result.systemCount} systems.` });
+    } catch (err) {
+      setMoonMessage({ kind: 'err', text: (err as Error).message });
+    }
+  }, []);
+
   const onImportDna = useCallback(async () => {
     try {
       const text = await navigator.clipboard.readText();
@@ -272,6 +299,30 @@ export function ExportsPage(): JSX.Element {
           The compact form starts with <code>ESOV2B</code>; the readable text form starts with{' '}
           <code>ESOV2T</code>. Older <code>ESOV1</code> strings still import. Imported plans are
           validated against your local seed database; unknown systems or upgrades are rejected.
+        </p>
+      </section>
+
+      <section className="exports__card" id="exports-moon-card">
+        <header className="exports__card-header">
+          <h3>Moon scans</h3>
+        </header>
+        <div className="exports__dna-actions">
+          <button type="button" className="exports__btn" onClick={() => void onExportMoonScans()}>
+            Export → clipboard
+          </button>
+          <button type="button" className="exports__btn" onClick={() => void onImportMoonScans()}>
+            Import from clipboard
+          </button>
+        </div>
+        {moonMessage && (
+          <div className={`exports__dna-message exports__dna-message--${moonMessage.kind}`}>
+            {moonMessage.text}
+          </div>
+        )}
+        <p className="exports__dna-hint">
+          Exports moon scan data for all systems in this plan's scope. Starts with{' '}
+          <code>ESOVMS1</code>. Importing merges data into the local moon scans database —
+          existing entries are updated, no plan data is modified.
         </p>
       </section>
 

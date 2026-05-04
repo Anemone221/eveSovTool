@@ -1096,6 +1096,10 @@ thead .matrix__sticky-col { z-index: 3; background: var(--bg-elev); }
 .region-map__container { position: relative; flex: 1; overflow: hidden; }
 .region-map__svg { display: block; width: 100%; height: 100%; }
 .region-map__svg svg { display: block; width: 100%; height: auto; }
+.region-map__legend-btn { background: var(--bg-elev); color: var(--fg-dim); border: 1px solid var(--border); border-radius: 4px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
+.region-map__legend-btn:hover { color: var(--fg); border-color: var(--accent); }
+.region-map__legend-btn--active { color: var(--fg); border-color: var(--accent); }
+.region-map__stat-select { background: var(--bg-elev); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; font: inherit; font-size: 12px; }
 
 /* ===== Op-sec pill ===== */
 .opsec-pill {
@@ -1223,3 +1227,103 @@ body[data-opsec-supercaps="1"] [data-supercap="1"] { color: transparent !importa
     font-size: 11px;
     color: var(--fg-dim);
 }
+
+/* Moon Scans panel */
+.moon-scans { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: auto; padding: 8px 0; }
+.moon-scans__import { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.moon-scans__paste {
+  width: 100%;
+  background: var(--bg-elev-2);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font: inherit;
+  resize: vertical;
+  outline: none;
+}
+.moon-scans__paste:focus { border-color: var(--accent); }
+.moon-scans__import-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.moon-scans__btn {
+  padding: 4px 10px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--fg);
+}
+.moon-scans__btn:hover { border-color: var(--accent); }
+.moon-scans__btn:disabled { opacity: 0.5; cursor: default; }
+.moon-scans__btn--danger { color: var(--danger); }
+.moon-scans__btn--danger:hover { border-color: var(--danger); }
+.moon-scans__import-result { font-size: 12px; color: var(--ok); }
+.moon-scans__sessions { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.moon-scans__section-label { font-size: 11px; font-weight: 600; color: var(--fg-mute); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+.moon-scans__session-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; }
+.moon-scans__session-date { color: var(--fg-dim); flex: 1; }
+.moon-scans__session-count { color: var(--fg-mute); }
+.moon-scans__filters { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.moon-scans__search { width: 100%; }
+.moon-scans__tier-filter { display: flex; gap: 4px; flex-wrap: wrap; }
+.moon-scans__tier-btn {
+  padding: 2px 8px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--fg-dim);
+}
+.moon-scans__tier-btn:hover { border-color: currentColor; }
+.moon-scans__tier-btn--active { border-color: currentColor; background: var(--bg-elev); }
+.moon-scans__empty { color: var(--fg-mute); padding: 12px 16px; }
+.moon-scans__systems { flex: 1; min-height: 0; }
+.moon-scans__system { border-bottom: 1px solid var(--border); }
+.moon-scans__system-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 5px 12px;
+  background: var(--bg-elev);
+  font: inherit;
+  color: var(--fg);
+  cursor: pointer;
+}
+.moon-scans__system-header:hover { background: var(--bg-elev-2); }
+.moon-scans__system-toggle { font-size: 10px; color: var(--fg-mute); width: 10px; }
+.moon-scans__system-name { font-weight: 600; font-size: 12px; flex: 1; }
+.moon-scans__system-count { font-size: 11px; color: var(--fg-mute); }
+.moon-scans__system-tiers { display: flex; gap: 4px; flex-wrap: wrap; }
+.moon-scans__tier-badge { font-size: 11px; font-weight: 600; }
+.moon-scans__moon-list { padding: 2px 0 4px; }
+.moon-scans__moon { border-bottom: 1px solid var(--border); }
+.moon-scans__moon:last-child { border-bottom: none; }
+.moon-scans__moon-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 12px 3px 28px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-dim);
+}
+.moon-scans__moon-tiers { display: flex; gap: 4px; }
+.moon-scans__moon-num { color: var(--fg-mute); min-width: 60px; }
+.moon-scans__ore-row {
+  display: grid;
+  grid-template-columns: 32px 1fr 80px 40px;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 12px 2px 40px;
+  font-size: 12px;
+}
+.moon-scans__ore-row:hover { background: var(--bg-elev); }
+.moon-scans__tier-pill { font-weight: 700; font-size: 11px; }
+.moon-scans__ore-name { color: var(--fg-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.moon-scans__ore-bar-wrap { height: 6px; background: var(--bg-elev-2); border-radius: 3px; overflow: hidden; }
+.moon-scans__ore-bar { height: 100%; border-radius: 3px; }
+.moon-scans__ore-pct { color: var(--fg-mute); text-align: right; }

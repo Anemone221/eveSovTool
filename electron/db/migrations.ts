@@ -96,6 +96,44 @@ export function runMigrations(db: DB, seedPath?: string): void {
         db.exec("ALTER TABLE upgrades ADD COLUMN icon BLOB");
     }
 
+    // Recreate moon_scans with the correct UNIQUE(system_id, moon_number, ore_type)
+    // constraint. The original table had UNIQUE(system_id, moon_number) which only
+    // stored one ore per moon — detect by inspecting the sqlite_master SQL.
+    const moonScansInfo = db
+        .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='moon_scans'")
+        .get() as { sql: string } | undefined;
+    // Check whether the UNIQUE constraint already includes ore_type.
+    // The old constraint was UNIQUE(system_id, moon_number); the new one adds ore_type.
+    const hasCorrectUnique = moonScansInfo?.sql
+        ? /UNIQUE\s*\([^)]*ore_type[^)]*\)/i.test(moonScansInfo.sql)
+        : true;
+    if (moonScansInfo && !hasCorrectUnique) {
+        db.transaction(() => {
+            db.exec(`
+                ALTER TABLE moon_scans RENAME TO moon_scans_old;
+
+                CREATE TABLE moon_scans (
+                  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                  session_id  INTEGER REFERENCES moon_scan_sessions(id) ON DELETE CASCADE,
+                  system_id   INTEGER NOT NULL REFERENCES systems(id),
+                  moon_number INTEGER NOT NULL,
+                  ore_type    TEXT NOT NULL,
+                  ore_percent REAL NOT NULL,
+                  scan_date   TEXT,
+                  UNIQUE(system_id, moon_number, ore_type)
+                );
+                CREATE INDEX IF NOT EXISTS idx_moon_scans_system ON moon_scans(system_id);
+
+                INSERT OR IGNORE INTO moon_scans
+                  (id, session_id, system_id, moon_number, ore_type, ore_percent, scan_date)
+                  SELECT id, session_id, system_id, moon_number, ore_type, ore_percent, scan_date
+                  FROM moon_scans_old;
+
+                DROP TABLE moon_scans_old;
+            `);
+        })();
+    }
+
     // Unconditionally sync all seeded read-only tables from seed.db so that
     // re-seeding (e.g. updated SVGs, new sov data) propagates to existing user DBs
     // without requiring a manual app.db delete.

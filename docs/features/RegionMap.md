@@ -30,6 +30,11 @@ Displays a dotlan-sourced SVG map of a selected region with upgrade/structure ic
 - **Fetch only sov-eligible regions during seed** — reduces dotlan requests to regions that matter; regions with no matching star description are skipped.
 - **150ms delay between dotlan fetches** — respectful to the community fansite server.
 
+## Prefs keys
+- `map.selectedRegionId` — last-selected region ID.
+- `map.showLegend` — `'true'` / `'false'`, default `'true'`. Hides the legend column and crops the viewBox to recover horizontal space.
+- `map.statMode` — one of `none | haven | forsaken-hub | ishtar | rally-point | true-sec | moon-r4 | moon-r8 | moon-r16 | moon-r32 | moon-r64 | moon-best`, default `'none'`. Renders a single label below each system node derived from combat upgrade grants, trueSec, or moon scan counts.
+
 ## Open questions / next steps
 - Clicking a system on the map could select it in the Tree / SystemDetail panel.
 - Region selector could be filtered to only regions in the active plan's scopes (requires fetching plan scopes in the panel).

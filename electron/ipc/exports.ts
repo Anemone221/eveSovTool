@@ -1,7 +1,9 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron';
 import { writeFile } from 'node:fs/promises';
+import { deflateRawSync, inflateRawSync } from 'node:zlib';
 import path from 'node:path';
 import { getDb } from '../db/userDb.js';
+import { oreRTier } from './moonScans.js';
 import {
   encodeDnaV2Binary,
   encodeDnaV2Text,
@@ -501,6 +503,108 @@ export function registerExportsIpc(): void {
       return result;
     }
   );
+
+  // Moon scan export: serialise all moon_scans rows for systems in the plan's scope.
+  // Format: 'ESOVMS1' + base64(JSON)
+  ipcMain.handle('exports.exportMoonScans', (_, planId: number): { data: string } => {
+    const db = getDb();
+
+    type ScopeRow = { system_id: number };
+    const planSystemIds = (db.prepare(`
+      SELECT DISTINCT s.id AS system_id
+      FROM plan_scopes sc
+      JOIN systems s ON (
+        (sc.scope_type = 'system'        AND sc.scope_id = s.id) OR
+        (sc.scope_type = 'constellation' AND sc.scope_id = s.constellation_id) OR
+        (sc.scope_type = 'region'        AND sc.scope_id = s.region_id)
+      )
+      WHERE sc.plan_id = ?
+      UNION
+      SELECT DISTINCT pu.system_id
+      FROM plan_upgrades pu WHERE pu.plan_id = ?
+      UNION
+      SELECT DISTINCT ps.system_id
+      FROM plan_structures ps WHERE ps.plan_id = ?
+    `).all(planId, planId, planId) as ScopeRow[]).map((r) => r.system_id);
+
+    if (planSystemIds.length === 0) return { data: 'ESOVMS1' + Buffer.from('[]', 'utf8').toString('base64') };
+
+    const placeholders = planSystemIds.map(() => '?').join(',');
+    type MoonRow = { system_id: number; moon_number: number; ore_type: string; ore_percent: number };
+    const rows = db.prepare(`
+      SELECT system_id, moon_number, ore_type, ore_percent
+      FROM moon_scans WHERE system_id IN (${placeholders})
+      ORDER BY system_id, moon_number, ore_type
+    `).all(...planSystemIds) as MoonRow[];
+
+    // Compact representation: array of [system_id, moon_number, ore_type, ore_percent]
+    const payload = rows.map((r) => [r.system_id, r.moon_number, r.ore_type, r.ore_percent]);
+    const compressed = deflateRawSync(Buffer.from(JSON.stringify(payload), 'utf8'));
+    const data = 'ESOVMS1' + compressed.toString('base64');
+    return { data };
+  });
+
+  // Moon scan import: parse ESOVMS1 payload and upsert into moon_scans.
+  // Creates a new import session for the batch.
+  ipcMain.handle('exports.importMoonScans', (_, raw: unknown): { systemCount: number; moonsImported: number } => {
+    if (typeof raw !== 'string') throw new Error('Moon scan data must be a string.');
+    if (!raw.startsWith('ESOVMS1')) throw new Error('Not a recognised moon scan export (expected ESOVMS1).');
+
+    let payload: unknown;
+    try {
+      const decompressed = inflateRawSync(Buffer.from(raw.slice(7), 'base64'), { maxOutputLength: 10 * 1024 * 1024 });
+      payload = JSON.parse(decompressed.toString('utf8'));
+    } catch {
+      throw new Error('Moon scan data decode failed.');
+    }
+    if (!Array.isArray(payload)) throw new Error('Invalid moon scan payload.');
+    if (payload.length > 100_000) throw new Error('Moon scan payload too large.');
+
+    const db = getDb();
+
+    type Entry = [number, number, string, number];
+    const entries: Entry[] = [];
+    for (const item of payload) {
+      if (!Array.isArray(item) || item.length !== 4) throw new Error('Invalid moon scan row.');
+      const [systemId, moonNumber, oreType, orePercent] = item;
+      if (!Number.isInteger(systemId) || systemId < 1) throw new Error('Invalid system_id in moon scan.');
+      if (!Number.isInteger(moonNumber) || moonNumber < 1) throw new Error('Invalid moon_number.');
+      if (typeof oreType !== 'string' || oreType.length === 0 || oreType.length > 100) throw new Error('Invalid ore_type.');
+      if (typeof orePercent !== 'number' || orePercent < 0 || orePercent > 1) throw new Error('Invalid ore_percent.');
+      if (oreRTier(oreType) === null) throw new Error(`Unknown ore type "${oreType}".`);
+      if (!db.prepare('SELECT 1 FROM systems WHERE id = ?').get(systemId)) {
+        throw new Error(`System ${systemId} not found in local SDE.`);
+      }
+      entries.push([systemId, moonNumber, oreType, orePercent]);
+    }
+
+    const systemCount = new Set(entries.map(([sid]) => sid)).size;
+    const now = new Date().toISOString();
+
+    const upsert = db.prepare(`
+      INSERT INTO moon_scans (session_id, system_id, moon_number, ore_type, ore_percent)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(system_id, moon_number, ore_type) DO UPDATE SET
+        session_id  = excluded.session_id,
+        ore_percent = excluded.ore_percent
+    `);
+    const insertSession = db.prepare(
+      'INSERT INTO moon_scan_sessions (imported_at, system_count) VALUES (?, ?)'
+    );
+
+    db.transaction(() => {
+      const sessionId = Number(insertSession.run(now, systemCount).lastInsertRowid);
+      for (const [systemId, moonNumber, oreType, orePercent] of entries) {
+        upsert.run(sessionId, systemId, moonNumber, oreType, orePercent);
+      }
+    })();
+
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('data-refreshed');
+    }
+
+    return { systemCount, moonsImported: entries.length };
+  });
 }
 
 function validateDnaPayloadV1(raw: unknown): ValidatedDna {

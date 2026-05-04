@@ -6,7 +6,7 @@ import { useOpsec } from '@/state/opsecStore';
 import { useExportRegistry } from '@/state/exportRegistry';
 import { buildExportFilename } from '@/data/exportFilename';
 import { withOpsecCapture } from '@/data/opsecCapture';
-import type { MapOverlayData, MapAuraData, TreeNodeRegion } from '@shared/index';
+import type { MapOverlayData, MapAuraData, TreeNodeRegion, MapSystemOverlay, MoonCounts } from '@shared/index';
 import {
   STRUCTURE_ICONS,
   STABILITY_ICONS,
@@ -18,8 +18,14 @@ import {
   relicSite,
 } from '@/data/mapIcons';
 import { siteEffectsFor, aggregateGrants, formatGrants } from '@/data/effects';
+import { producibleFromPlanets, highestProducibleTier } from '@/data/piRecipes';
+import type { PlanetType } from '@/data/piRecipes';
 
 const MAP_PREFS_KEY = 'map.selectedRegionId';
+const LEGEND_PREFS_KEY = 'map.showLegend';
+const STAT_PREFS_KEY = 'map.statMode';
+// Gap between original map content and legend column — must match svgSanitize.ts LEGEND_MARGIN.
+const LEGEND_MARGIN = 10;
 // Dotlan system node: <use x y> places top-left of the 56×28 symbol.
 // Center confirmed by jump line coords: cx = use.x + 28.5, cy = use.y + 14.5
 const NODE_CX = 28.5;
@@ -28,6 +34,86 @@ const NODE_H = 28;
 // Padding added to the SVG viewBox on all sides so overlay icons (rendered outside
 // the base node bounds) are never clipped by the viewport edge.
 const SVG_MARGIN = 24;
+
+type StatMode =
+  | 'none'
+  | 'haven'
+  | 'forsaken-hub'
+  | 'ishtar'
+  | 'rally-point'
+  | 'true-sec'
+  | 'moon-r4'
+  | 'moon-r8'
+  | 'moon-r16'
+  | 'moon-r32'
+  | 'moon-r64'
+  | 'moon-best'
+  | 'pi-tier'
+  | 'forsaken-sanctum';
+
+const VALID_STAT_MODES: StatMode[] = [
+  'none', 'haven', 'forsaken-hub', 'ishtar', 'rally-point', 'true-sec',
+  'moon-r4', 'moon-r8', 'moon-r16', 'moon-r32', 'moon-r64', 'moon-best',
+  'pi-tier', 'forsaken-sanctum',
+];
+
+function extractStat(sys: MapSystemOverlay, mode: StatMode): string {
+  if (mode === 'none') return '';
+
+  if (mode === 'true-sec') {
+    return sys.trueSec !== null ? sys.trueSec.toFixed(2) : '';
+  }
+
+  if (mode === 'moon-r4' || mode === 'moon-r8' || mode === 'moon-r16' || mode === 'moon-r32' || mode === 'moon-r64') {
+    if (!sys.moonCounts) return '';
+    const key = mode.slice('moon-'.length) as keyof MoonCounts;
+    const n = sys.moonCounts[key];
+    return n > 0 ? String(n) : '';
+  }
+
+  if (mode === 'moon-best') {
+    if (!sys.moonCounts) return '';
+    const c = sys.moonCounts;
+    if (c.r64 > 0) return `R64×${c.r64}`;
+    if (c.r32 > 0) return `R32×${c.r32}`;
+    if (c.r16 > 0) return `R16×${c.r16}`;
+    if (c.r8 > 0) return `R8×${c.r8}`;
+    if (c.r4 > 0) return `R4×${c.r4}`;
+    return '';
+  }
+
+  if (mode === 'pi-tier') {
+    if (sys.planetTypes.length === 0) return '';
+    const tier = highestProducibleTier(producibleFromPlanets(sys.planetTypes as PlanetType[]));
+    return tier > 0 ? `P${tier}` : '';
+  }
+
+  if (!sys.hasCombatSites) return '';
+  const grants = aggregateGrants(sys.combatUpgrades.map((u) => siteEffectsFor(u, sys.trueSec)));
+  if (mode === 'haven') {
+    const n = grants.find((g) => g.site === 'Haven')?.count ?? 0;
+    return n > 0 ? String(n) : '';
+  }
+  if (mode === 'forsaken-hub') {
+    const n = grants.find((g) => g.site === 'Forsaken Hub')?.count ?? 0;
+    return n > 0 ? String(n) : '';
+  }
+  if (mode === 'ishtar') {
+    const h = grants.find((g) => g.site === 'Haven')?.count ?? 0;
+    const f = grants.find((g) => g.site === 'Forsaken Hub')?.count ?? 0;
+    const total = h + f;
+    return total > 0 ? String(total) : '';
+  }
+  if (mode === 'rally-point') {
+    const n = grants.find((g) => g.site === 'Rally Point')?.count ?? 0;
+    return n > 0 ? String(n) : '';
+  }
+  if (mode === 'forsaken-sanctum') {
+    const n = grants.find((g) => g.site === 'Forsaken Sanctum')?.count ?? 0;
+    return n > 0 ? String(n) : '';
+  }
+  return '';
+}
 
 export function RegionMap() {
   const activePlanId = useUi((s) => s.activePlanId);
@@ -41,10 +127,16 @@ export function RegionMap() {
   const [overlay, setOverlay] = useState<MapOverlayData | null>(null);
   const [auraData, setAuraData] = useState<MapAuraData | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [showLegend, setShowLegend] = useState(true);
+  const [statMode, setStatMode] = useState<StatMode>('none');
+  const [moonStats, setMoonStats] = useState<Record<number, MoonCounts>>({});
 
   // System SVG positions parsed from the dotlan <use> elements.
   const [positions, setPositions] = useState<Map<number, { x: number; y: number }>>(new Map());
   const positionsRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  // Stores the viewBox string after SVG_MARGIN expansion so the legend effect can
+  // restore it exactly when re-enabling the legend after it was hidden.
+  const fullViewBoxRef = useRef<string | null>(null);
 
   const svgContainerRef = useRef<HTMLDivElement>(null);
 
@@ -106,13 +198,21 @@ export function RegionMap() {
     }
   }, [selectedSystemId, tree]);
 
-  // Restore persisted region selection (only used as fallback before plan data loads).
+  // Restore persisted prefs (region, legend visibility, stat mode).
   useEffect(() => {
     evesov.prefs.get(MAP_PREFS_KEY).then((v) => {
       if (v) {
         const n = Number(v);
         if (Number.isFinite(n)) setSelectedRegionId((prev) => prev ?? n);
       }
+    }).catch(console.error);
+
+    evesov.prefs.get(LEGEND_PREFS_KEY).then((v) => {
+      if (v !== null) setShowLegend(v !== 'false');
+    }).catch(console.error);
+
+    evesov.prefs.get(STAT_PREFS_KEY).then((v) => {
+      if (v && VALID_STAT_MODES.includes(v as StatMode)) setStatMode(v as StatMode);
     }).catch(console.error);
   }, []);
 
@@ -126,7 +226,7 @@ export function RegionMap() {
     evesov.map.regionSvg(selectedRegionId).then(setSvgContent).catch(console.error);
   }, [selectedRegionId]);
 
-  // Parse system positions after SVG is injected into the DOM
+  // Parse system positions and expand viewBox by SVG_MARGIN after SVG is injected into the DOM.
   useEffect(() => {
     if (!svgContent || !svgContainerRef.current) return;
     const frame = requestAnimationFrame(() => {
@@ -137,10 +237,9 @@ export function RegionMap() {
         const vb = svgEl.getAttribute('viewBox');
         if (vb) {
           const [x, y, w, h] = vb.split(' ').map(Number);
-          svgEl.setAttribute(
-            'viewBox',
-            `${x - SVG_MARGIN} ${y - SVG_MARGIN} ${w + SVG_MARGIN * 2} ${h + SVG_MARGIN * 2}`,
-          );
+          const expanded = `${x - SVG_MARGIN} ${y - SVG_MARGIN} ${w + SVG_MARGIN * 2} ${h + SVG_MARGIN * 2}`;
+          svgEl.setAttribute('viewBox', expanded);
+          fullViewBoxRef.current = expanded;
         }
       }
 
@@ -163,12 +262,58 @@ export function RegionMap() {
     return () => cancelAnimationFrame(frame);
   }, [svgContent]);
 
+  // Show or hide the legend by cropping the viewBox and toggling display on #legend.
+  // Runs after SVG_MARGIN has been applied (separate RAF so it reads the updated viewBox).
+  useEffect(() => {
+    if (!svgContent || !svgContainerRef.current) return;
+    const frame = requestAnimationFrame(() => {
+      const svgEl = svgContainerRef.current?.querySelector('svg');
+      if (!svgEl) return;
+      const legendG = svgEl.querySelector<SVGGElement>('#legend');
+      if (!legendG) return;
+
+      if (showLegend) {
+        legendG.removeAttribute('display');
+        if (fullViewBoxRef.current) {
+          svgEl.setAttribute('viewBox', fullViewBoxRef.current);
+        }
+      } else {
+        legendG.setAttribute('display', 'none');
+        // Crop the viewBox to remove the dead legend strip.
+        // The legend <rect> x tells us where the legend column starts.
+        const legendRect = legendG.querySelector('rect');
+        if (legendRect) {
+          const legendX = parseFloat(legendRect.getAttribute('x') ?? '0');
+          const vb = svgEl.getAttribute('viewBox');
+          if (vb) {
+            const [vbX, vbY, , vbH] = vb.split(' ').map(Number);
+            // Original map width = legendX − LEGEND_MARGIN − vbX.
+            // SVG_MARGIN was subtracted from vbX, so legendX is still correct
+            // relative to the original content — no adjustment needed.
+            const origW = legendX - LEGEND_MARGIN - vbX;
+            svgEl.setAttribute('viewBox', `${vbX} ${vbY} ${origW} ${vbH}`);
+          }
+        }
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [svgContent, showLegend]);
+
   // Inject overlay <g> directly into the dotlan SVG so coordinates share the same space.
   // Depends on positions (state) so it re-runs once positions are parsed, and also when
-  // overlay/auraData arrive. positionsRef gives the current map without stale-closure risk.
+  // overlay/auraData/statMode arrive. positionsRef gives the current map without stale-closure risk.
   useEffect(() => {
     const container = svgContainerRef.current;
     if (!container || !overlay || !auraData || positions.size === 0) return;
+
+    // Merge moon counts into overlay systems without mutating the original state.
+    const overlayWithMoons = {
+      ...overlay,
+      systems: overlay.systems.map((s) => ({
+        ...s,
+        moonCounts: moonStats[s.systemId] ?? null,
+      })),
+    };
 
     const svgEl = container.querySelector('svg');
     if (!svgEl) return;
@@ -279,8 +424,8 @@ export function RegionMap() {
     const dbIconAny = (names: string[], fallback: string): string =>
       names.map((n) => overlay.upgradeIcons[n]).find(Boolean) ?? fallback;
 
-    // 3. Per-system icons (above system nodes)
-    for (const sys of overlay.systems) {
+    // 3. Per-system icons (above system nodes) and stat labels (below).
+    for (const sys of overlayWithMoons.systems) {
       const p = pos.get(sys.systemId);
       if (!p) continue;
       const cx = p.x + NODE_CX;
@@ -336,6 +481,48 @@ export function RegionMap() {
       if (upgradeIcons.length > 0) {
         addIconRow(upgradeIcons, cx, p.y + NODE_H + 2, upgradeTips);
       }
+
+      // Stat label inside the node, in the lower band where alliance text used to appear.
+      if (statMode !== 'none') {
+        const label = extractStat(sys, statMode);
+        if (label) {
+          const txt = document.createElementNS(NS, 'text');
+          txt.setAttribute('x', String(cx));
+          // Node is 28px tall; system name sits ~y+10. Alliance text was ~y+22.
+          txt.setAttribute('y', String(p.y + 22));
+          txt.setAttribute('text-anchor', 'middle');
+          txt.setAttribute('font-size', '8');
+          txt.setAttribute('font-weight', 'bold');
+          txt.setAttribute('fill', '#d8dee9');
+          txt.setAttribute('pointer-events', 'none');
+          txt.textContent = label;
+          g.appendChild(txt);
+        }
+      }
+    }
+
+    // Moon stat labels for systems that have scan data but no overlay entry.
+    // The overlay loop above only covers systems with plan upgrades/structures.
+    if (statMode.startsWith('moon-')) {
+      const overlaySystemIds = new Set(overlay.systems.map((s) => s.systemId));
+      for (const [idStr, counts] of Object.entries(moonStats)) {
+        const systemId = Number(idStr);
+        if (overlaySystemIds.has(systemId)) continue; // already handled above
+        const p = pos.get(systemId);
+        if (!p) continue;
+        const label = extractStat({ moonCounts: counts } as MapSystemOverlay, statMode);
+        if (!label) continue;
+        const txt = document.createElementNS(NS, 'text');
+        txt.setAttribute('x', String(p.x + NODE_CX));
+        txt.setAttribute('y', String(p.y + 22));
+        txt.setAttribute('text-anchor', 'middle');
+        txt.setAttribute('font-size', '8');
+        txt.setAttribute('font-weight', 'bold');
+        txt.setAttribute('fill', '#d8dee9');
+        txt.setAttribute('pointer-events', 'none');
+        txt.textContent = label;
+        g.appendChild(txt);
+      }
     }
 
     svgEl.appendChild(g);
@@ -345,17 +532,19 @@ export function RegionMap() {
       svgEl.querySelector('#evesov-lines')?.remove();
       svgEl.querySelector('#evesov-overlay')?.remove();
     };
-  }, [overlay, auraData, positions]);
+  }, [overlay, auraData, positions, statMode, moonStats]);
 
   // Fetch overlay + aura data when plan or region changes
   const fetchOverlayData = useCallback(() => {
     if (activePlanId === null || selectedRegionId === null) {
       setOverlay(null);
       setAuraData(null);
+      setMoonStats({});
       return;
     }
     evesov.map.overlayData(activePlanId, selectedRegionId).then(setOverlay).catch(console.error);
     evesov.map.auraData(activePlanId, selectedRegionId).then(setAuraData).catch(console.error);
+    evesov.map.moonStats(activePlanId, selectedRegionId).then(setMoonStats).catch(console.error);
   }, [activePlanId, selectedRegionId]);
 
   useEffect(() => {
@@ -365,6 +554,11 @@ export function RegionMap() {
   // Re-fetch overlay on plan mutations
   useEffect(() => {
     return evesov.events.on('plan-changed', fetchOverlayData);
+  }, [fetchOverlayData]);
+
+  // Re-fetch moon stats when scan data changes (import / delete session)
+  useEffect(() => {
+    return evesov.events.on('data-refreshed', fetchOverlayData);
   }, [fetchOverlayData]);
 
   const handleRegionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -494,6 +688,39 @@ export function RegionMap() {
           {planRegions.map((r) => (
             <option key={r.id} value={r.id}>{r.name}</option>
           ))}
+        </select>
+        <button
+          type="button"
+          className={`region-map__legend-btn${showLegend ? ' region-map__legend-btn--active' : ''}`}
+          onClick={() => {
+            const next = !showLegend;
+            setShowLegend(next);
+            void evesov.prefs.set(LEGEND_PREFS_KEY, String(next));
+          }}
+        >Legend</button>
+        <select
+          className="region-map__stat-select"
+          value={statMode}
+          onChange={(e) => {
+            const v = e.target.value as StatMode;
+            setStatMode(v);
+            void evesov.prefs.set(STAT_PREFS_KEY, v);
+          }}
+        >
+          <option value="none">Stats: None</option>
+          <option value="haven">Haven Count</option>
+          <option value="forsaken-hub">Forsaken Hub Count</option>
+          <option value="ishtar">Ishtar Capable</option>
+          <option value="rally-point">Rally Point Count</option>
+          <option value="forsaken-sanctum">Forsaken Sanctum Count</option>
+          <option value="true-sec">True Sec</option>
+          <option value="moon-r4">Moon: R4 Count</option>
+          <option value="moon-r8">Moon: R8 Count</option>
+          <option value="moon-r16">Moon: R16 Count</option>
+          <option value="moon-r32">Moon: R32 Count</option>
+          <option value="moon-r64">Moon: R64 Count</option>
+          <option value="moon-best">Moon: Best Tier</option>
+          <option value="pi-tier">PI: Highest Tier</option>
         </select>
         <OpsecPill />
         <button
