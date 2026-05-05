@@ -8,6 +8,11 @@ import type {
 import { BrowserWindow, ipcMain } from "electron";
 import { getDb } from "../db/userDb.js";
 
+function assertWritable(db: ReturnType<typeof getDb>, planId: number): void {
+    const row = db.prepare('SELECT read_only FROM plans WHERE id = ?').get(planId) as { read_only: number } | undefined;
+    if (row?.read_only === 1) throw new Error('Plan is read-only');
+}
+
 interface StructureDbRow {
     id: number;
     plan_id: number;
@@ -150,6 +155,7 @@ export function registerStructuresIpc(): void {
             structure: StructureAddPayload,
         ): { id: number } => {
             const db = getDb();
+            assertWritable(db, planId);
             const result = db
                 .prepare(
                     `INSERT INTO plan_structures (plan_id, system_id, structure_type, name, location, notes, source)
@@ -172,6 +178,7 @@ export function registerStructuresIpc(): void {
         "structures.remove",
         (_, planId: number, structureId: number): void => {
             const db = getDb();
+            assertWritable(db, planId);
             db.prepare(
                 "DELETE FROM plan_structures WHERE id = ? AND plan_id = ?",
             ).run(structureId, planId);
@@ -188,6 +195,7 @@ export function registerStructuresIpc(): void {
             text: string,
         ): { count: number } => {
             const db = getDb();
+            assertWritable(db, planId);
             const lines = text
                 .split("\n")
                 .map((l) => l.trim())

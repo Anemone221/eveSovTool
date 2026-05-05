@@ -118,6 +118,8 @@ function extractStat(sys: MapSystemOverlay, mode: StatMode): string {
 export function RegionMap() {
   const activePlanId = useUi((s) => s.activePlanId);
   const selectedSystemId = useUi((s) => s.selectedSystemId);
+  const selectSystem = useUi((s) => s.selectSystem);
+  const focusPanel = useUi((s) => s.focusPanel);
 
   const [tree, setTree] = useState<TreeNodeRegion[]>([]);
   // Region IDs that have systems assigned in the active plan (empty = no plan / no systems).
@@ -753,6 +755,15 @@ export function RegionMap() {
             className="region-map__svg"
             // eslint-disable-next-line react/no-danger
             dangerouslySetInnerHTML={{ __html: svgContent }}
+            onDoubleClick={(e) => {
+              // Walk up from the click target to find a <use id="sys{id}"> element.
+              let el = e.target as Element | null;
+              while (el && el !== svgContainerRef.current) {
+                const id = el.id?.match(/^sys(\d+)$/)?.[1];
+                if (id) { selectSystem(Number(id)); focusPanel('system'); return; }
+                el = el.parentElement;
+              }
+            }}
           />
         </div>
       )}

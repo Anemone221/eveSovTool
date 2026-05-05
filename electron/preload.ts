@@ -24,6 +24,7 @@ const api: EveSovApi = {
     rename: (id, name) => ipcRenderer.invoke('plans.rename', id, name),
     duplicate: (id, newName) => ipcRenderer.invoke('plans.duplicate', id, newName),
     delete: (id) => ipcRenderer.invoke('plans.delete', id),
+    setReadOnly: (id, readOnly) => ipcRenderer.invoke('plans.setReadOnly', id, readOnly),
     setScopes: (planId, scopes) => ipcRenderer.invoke('plans.setScopes', planId, scopes),
     explodeScope: (planId, scopeType, scopeId) =>
       ipcRenderer.invoke('plans.explodeScope', planId, scopeType, scopeId),

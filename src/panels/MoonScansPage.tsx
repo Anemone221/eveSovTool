@@ -45,6 +45,27 @@ interface MoonGroup {
   ores: MoonScan[];
 }
 
+const ROMAN: Record<string, number> = {
+  I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000,
+};
+
+function parseRoman(s: string): number {
+  let result = 0;
+  for (let i = 0; i < s.length; i++) {
+    const cur = ROMAN[s[i]] ?? 0;
+    const next = ROMAN[s[i + 1]] ?? 0;
+    result += cur < next ? -cur : cur;
+  }
+  return result;
+}
+
+function planetOrdinal(planetName: string | null): number {
+  if (!planetName) return Infinity;
+  const suffix = planetName.split(' ').at(-1) ?? '';
+  const n = parseRoman(suffix.toUpperCase());
+  return n > 0 ? n : Infinity;
+}
+
 function groupByMoon(scans: MoonScan[]): MoonGroup[] {
   const map = new Map<number, MoonGroup>();
   for (const scan of scans) {
@@ -53,7 +74,12 @@ function groupByMoon(scans: MoonScan[]): MoonGroup[] {
     }
     map.get(scan.moonNumber)!.ores.push(scan);
   }
-  return [...map.values()].sort((a, b) => a.moonNumber - b.moonNumber);
+  return [...map.values()].sort((a, b) => {
+    const pa = planetOrdinal(a.ores[0]?.planetName ?? null);
+    const pb = planetOrdinal(b.ores[0]?.planetName ?? null);
+    if (pa !== pb) return pa - pb;
+    return a.moonNumber - b.moonNumber;
+  });
 }
 
 function groupBySystem(scans: MoonScan[]): SystemMoons[] {
@@ -249,7 +275,11 @@ export function MoonScansPage() {
                   {groupByMoon(moons).map(({ moonNumber, ores }) => (
                     <div key={moonNumber} className="moon-scans__moon">
                       <div className="moon-scans__moon-header">
-                        <span className="moon-scans__moon-num">Moon {moonNumber}</span>
+                        <span className="moon-scans__moon-num">
+                          {ores[0]?.planetName
+                            ? `${ores[0].planetName} - Moon ${moonNumber}`
+                            : `Moon ${moonNumber}`}
+                        </span>
                         <span className="moon-scans__moon-tiers">
                           {R_TIERS.map((t) => {
                             const count = ores.filter((o) => tierLabel(o.oreType) === `R${t}`).length;

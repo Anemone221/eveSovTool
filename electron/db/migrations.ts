@@ -134,6 +134,20 @@ export function runMigrations(db: DB, seedPath?: string): void {
         })();
     }
 
+    const moonScanCols = (
+        db.prepare("PRAGMA table_info(moon_scans)").all() as { name: string }[]
+    ).map((r) => r.name);
+    if (!moonScanCols.includes("planet_name")) {
+        db.exec("ALTER TABLE moon_scans ADD COLUMN planet_name TEXT");
+    }
+
+    const planCols = (
+        db.prepare("PRAGMA table_info(plans)").all() as { name: string }[]
+    ).map((r) => r.name);
+    if (!planCols.includes("read_only")) {
+        db.exec("ALTER TABLE plans ADD COLUMN read_only INTEGER NOT NULL DEFAULT 0");
+    }
+
     // Unconditionally sync all seeded read-only tables from seed.db so that
     // re-seeding (e.g. updated SVGs, new sov data) propagates to existing user DBs
     // without requiring a manual app.db delete.

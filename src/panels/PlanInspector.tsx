@@ -39,6 +39,7 @@ function isOverPowerOrWorkforce(s: SystemBalance): boolean {
 
 export function PlanInspector() {
   const activePlanId = useUi((s) => s.activePlanId);
+  const planReadOnly = useUi((s) => s.activePlanReadOnly);
   const selectSystem = useUi((s) => s.selectSystem);
   const focusPanel = useUi((s) => s.focusPanel);
   const [plan, setPlan] = useState<PlanSummary | null>(null);
@@ -232,9 +233,10 @@ export function PlanInspector() {
     <div className="inspector">
       <header
         className="inspector__header"
-        onContextMenu={(e) =>
-          openMenu(e, [clearAction({ kind: 'plan' }, `plan "${plan.name}"`)])
-        }
+        onContextMenu={(e) => {
+          if (planReadOnly) return;
+          openMenu(e, [clearAction({ kind: 'plan' }, `plan "${plan.name}"`)]);
+        }}
       >
         <h2>{plan.name}</h2>
         <span className="inspector__meta">
@@ -279,14 +281,15 @@ export function PlanInspector() {
                     type="button"
                     className="inspector-tree__header"
                     onClick={() => toggleConstellation(g.constellationId)}
-                    onContextMenu={(e) =>
+                    onContextMenu={(e) => {
+                      if (planReadOnly) return;
                       openMenu(e, [
                         clearAction(
                           { kind: 'constellation', id: g.constellationId },
                           `constellation ${g.constellationName}`
                         )
-                      ])
-                    }
+                      ]);
+                    }}
                   >
                     <span className="tree__chevron">{isCollapsed ? '▸' : '▾'}</span>
                     <span className="inspector-tree__title">
@@ -350,7 +353,8 @@ export function PlanInspector() {
                             <tr
                               key={s.systemId}
                               className={`inspector__row${over ? ' inspector__row--over' : ''}`}
-                              onContextMenu={(e) =>
+                              onContextMenu={(e) => {
+                                if (planReadOnly) return;
                                 openMenu(e, [
                                   setCapitalAction(
                                     s.systemId,
@@ -358,8 +362,8 @@ export function PlanInspector() {
                                     capitalSystemId === s.systemId
                                   ),
                                   clearAction({ kind: 'system', id: s.systemId }, s.systemName)
-                                ])
-                              }
+                                ]);
+                              }}
                             >
                               <td>
                                 <span className={`inspector__dot${over ? ' inspector__dot--over' : ''}`} />
@@ -443,7 +447,7 @@ export function PlanInspector() {
                                 {s.totalCount > 0 ? `${s.installedCount}/${s.totalCount}` : '—'}
                               </td>
                               <td>
-                                {removingSystemId === s.systemId ? (
+                                {!planReadOnly && (removingSystemId === s.systemId ? (
                                   <span className="inspector__remove-confirm">
                                     <button
                                       type="button"
@@ -476,7 +480,7 @@ export function PlanInspector() {
                                   >
                                     ×
                                   </button>
-                                )}
+                                ))}
                               </td>
                             </tr>
                           );

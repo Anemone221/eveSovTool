@@ -93,6 +93,7 @@ export interface PlanSummary {
     name: string;
     createdAt: string;
     updatedAt: string;
+    readOnly: boolean;
 }
 
 export interface PlanScope {
@@ -246,6 +247,8 @@ export interface MoonScan {
     systemId: number;
     systemName: string;
     moonNumber: number;
+    planetName: string | null;
+    planetType: string | null;
     oreType: string;
     orePercent: number;
     scanDate: string | null;
@@ -323,6 +326,7 @@ export interface EveSovApi {
         rename: (id: number, name: string) => Promise<PlanSummary>;
         duplicate: (id: number, newName: string) => Promise<PlanSummary>;
         delete: (id: number) => Promise<void>;
+        setReadOnly: (id: number, readOnly: boolean) => Promise<PlanSummary>;
         setScopes: (planId: number, scopes: PlanScope[]) => Promise<void>;
         explodeScope: (
             planId: number,
