@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { evesov } from '@/api/evesov';
 import { useUi } from '@/state/uiStore';
 import { siteEffectsFor } from '@/data/effects';
-import type { PlanRollup, PlanRollupRow, PlanSummary } from '@shared/index';
+import type { PlanRollup, PlanRollupRow, PlanSummary, WorkforceTransfer } from '@shared/index';
 
 interface DiffRow {
   systemId: number;
@@ -21,12 +21,23 @@ interface CompareSummary {
   siteBreakdown: Map<string, number>;
 }
 
+interface TransferDiffRow {
+  key: string;
+  sourceName: string;
+  destName: string;
+  amountA: number | null;  // null = not present in this plan
+  amountB: number | null;
+  exportAllUnusedA: boolean;
+  exportAllUnusedB: boolean;
+}
+
 interface CompareResult {
   planAName: string;
   planBName: string;
   summaryA: CompareSummary;
   summaryB: CompareSummary;
   rows: DiffRow[];
+  transferDiffs: TransferDiffRow[];
 }
 
 export function PlansPanel() {
@@ -139,13 +150,15 @@ export function PlansPanel() {
   const runComparison = useCallback(async (idA: number, idB: number) => {
     setCompareLoading(true);
     setComparingFromId(null);
-    const [rollupA, rollupB] = await Promise.all([
+    const [rollupA, rollupB, transfersA, transfersB] = await Promise.all([
       evesov.plans.summary(idA),
       evesov.plans.summary(idB),
+      evesov.plans.getWorkforceTransfers(idA),
+      evesov.plans.getWorkforceTransfers(idB),
     ]);
     const planAName = plans.find((p) => p.id === idA)?.name ?? `Plan ${idA}`;
     const planBName = plans.find((p) => p.id === idB)?.name ?? `Plan ${idB}`;
-    setCompareResult(buildDiff(rollupA, rollupB, planAName, planBName));
+    setCompareResult(buildDiff(rollupA, rollupB, transfersA, transfersB, planAName, planBName));
     setCompareLoading(false);
   }, [plans]);
 
@@ -180,6 +193,17 @@ export function PlansPanel() {
       lines.push(`## ${r.systemName} (${r.constellationName})`);
       for (const u of r.added) lines.push(`+ ${u}`);
       for (const u of r.removed) lines.push(`- ${u}`);
+      lines.push('');
+    }
+    if (compareResult.transferDiffs.length > 0) {
+      lines.push('## Workforce Transfer Changes', '');
+      lines.push(`| From | To | ${planAName} | ${planBName} |`);
+      lines.push(`|---|---|---|---|`);
+      for (const t of compareResult.transferDiffs) {
+        const fmtA = t.amountA === null ? '—' : t.exportAllUnusedA ? 'all unused' : fmt(t.amountA);
+        const fmtB = t.amountB === null ? '—' : t.exportAllUnusedB ? 'all unused' : fmt(t.amountB);
+        lines.push(`| ${t.sourceName} | ${t.destName} | ${fmtA} | ${fmtB} |`);
+      }
       lines.push('');
     }
     void navigator.clipboard.writeText(lines.join('\n')).then(() => {
@@ -497,6 +521,39 @@ export function PlansPanel() {
                   )}
                 </tbody>
               </table>
+              {compareResult.transferDiffs.length > 0 && (
+                <table className="plans__compare-table plans__compare-table--transfers">
+                  <thead>
+                    <tr>
+                      <th colSpan={4} className="plans__compare-section-head">Workforce Transfers</th>
+                    </tr>
+                    <tr>
+                      <th>From</th>
+                      <th>To</th>
+                      <th>{compareResult.planAName}</th>
+                      <th>{compareResult.planBName}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {compareResult.transferDiffs.map((t) => (
+                      <tr key={t.key} className="plans__compare-row plans__compare-row--changed">
+                        <td>{t.sourceName}</td>
+                        <td>{t.destName}</td>
+                        <td className={t.amountA === null ? 'plans__compare-absent-cell' : ''}>
+                          {t.amountA === null
+                            ? <em className="plans__compare-absent">—</em>
+                            : t.exportAllUnusedA ? 'all unused' : t.amountA.toLocaleString()}
+                        </td>
+                        <td className={t.amountB === null ? 'plans__compare-absent-cell' : ''}>
+                          {t.amountB === null
+                            ? <em className="plans__compare-absent">—</em>
+                            : t.exportAllUnusedB ? 'all unused' : t.amountB.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </>
           )}
         </div>
@@ -584,9 +641,19 @@ function siteSummaryForRollup(rollup: PlanRollup): { total: number; breakdown: M
   return { total, breakdown };
 }
 
+function transferKey(t: WorkforceTransfer): string {
+  return `${t.sourceSystemId}:${t.destSystemId}`;
+}
+
+function transferAmount(t: WorkforceTransfer): number {
+  return t.exportAllUnused ? -1 : t.transferAmount;
+}
+
 function buildDiff(
   rollupA: PlanRollup,
   rollupB: PlanRollup,
+  transfersA: WorkforceTransfer[],
+  transfersB: WorkforceTransfer[],
   planAName: string,
   planBName: string,
 ): CompareResult {
@@ -644,5 +711,27 @@ function buildDiff(
     a.systemName.localeCompare(b.systemName),
   );
 
-  return { planAName, planBName, summaryA, summaryB, rows };
+  // diff workforce transfers
+  const tMapA = new Map<string, WorkforceTransfer>(transfersA.map((t) => [transferKey(t), t]));
+  const tMapB = new Map<string, WorkforceTransfer>(transfersB.map((t) => [transferKey(t), t]));
+  const allKeys = new Set([...tMapA.keys(), ...tMapB.keys()]);
+  const transferDiffs: TransferDiffRow[] = [];
+  for (const key of allKeys) {
+    const tA = tMapA.get(key);
+    const tB = tMapB.get(key);
+    if (tA && tB && transferAmount(tA) === transferAmount(tB)) continue;
+    const ref = (tA ?? tB)!;
+    transferDiffs.push({
+      key,
+      sourceName: ref.sourceName,
+      destName: ref.destName,
+      amountA: tA ? tA.transferAmount : null,
+      amountB: tB ? tB.transferAmount : null,
+      exportAllUnusedA: tA?.exportAllUnused ?? false,
+      exportAllUnusedB: tB?.exportAllUnused ?? false,
+    });
+  }
+  transferDiffs.sort((a, b) => a.sourceName.localeCompare(b.sourceName) || a.destName.localeCompare(b.destName));
+
+  return { planAName, planBName, summaryA, summaryB, rows, transferDiffs };
 }
