@@ -6,6 +6,7 @@ import { registerExportsIpc } from './exports.js';
 import { registerStructuresIpc } from './structures.js';
 import { registerMapIpc } from './map.js';
 import { registerMoonScansIpc } from './moonScans.js';
+import { registerWindowsIpc } from './windows.js';
 
 export function registerIpc(): void {
   ipcMain.handle('ping', () => 'pong');
@@ -16,4 +17,5 @@ export function registerIpc(): void {
   registerStructuresIpc();
   registerMapIpc();
   registerMoonScansIpc();
+  registerWindowsIpc();
 }

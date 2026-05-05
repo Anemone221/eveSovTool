@@ -97,6 +97,7 @@ export function DockShell() {
     const hydrateActivePlan = useUi((s) => s.hydrateActivePlan);
     const registerFocusPanel = useUi((s) => s.registerFocusPanel);
     const activePlanId = useUi((s) => s.activePlanId);
+    const selectSystem = useUi((s) => s.selectSystem);
     const hydrateOpsec = useOpsec((s) => s.hydrate);
 
     useEffect(() => {
@@ -128,6 +129,10 @@ export function DockShell() {
         };
     }, [activePlanId]);
 
+    const popOut = useCallback((panelId: string) => {
+        void evesov.windows.openPanel(panelId);
+    }, []);
+
     const addOrFocus = useCallback((panelId: string) => {
         const api = apiRef.current;
         if (!api) return;
@@ -150,6 +155,20 @@ export function DockShell() {
         registerFocusPanel((panelId) => addOrFocus(panelId));
         return () => registerFocusPanel(null);
     }, [registerFocusPanel, addOrFocus]);
+
+    useEffect(() => {
+        return evesov.events.on('selected-system-changed', (payload) => {
+            const { systemId } = payload as { systemId: number };
+            selectSystem(systemId);
+        });
+    }, [selectSystem]);
+
+    useEffect(() => {
+        return evesov.events.on('focus-panel-requested', (payload) => {
+            const { panelId } = payload as { panelId: string };
+            addOrFocus(panelId);
+        });
+    }, [addOrFocus]);
 
     const onReady = useCallback(async (event: DockviewReadyEvent) => {
         apiRef.current = event.api;
@@ -241,7 +260,7 @@ export function DockShell() {
 
     return (
         <div className="dock-shell">
-            <ActivityBar active={active} onActivate={addOrFocus} />
+            <ActivityBar active={active} onActivate={addOrFocus} onPopOut={popOut} />
             <div className="dock-shell__main">
                 <DockviewReact
                     components={components}

@@ -1,5 +1,7 @@
-import { ipcMain } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
 import { getDb } from '../db/userDb.js';
+
+const ACTIVE_PLAN_KEY = 'plan.active.v1';
 
 export function registerPrefsIpc(): void {
   ipcMain.handle('prefs.get', (_, key: string): string | null => {
@@ -16,6 +18,12 @@ export function registerPrefsIpc(): void {
          ON CONFLICT(key) DO UPDATE SET value = excluded.value`
       )
       .run(key, value);
+
+    if (key === ACTIVE_PLAN_KEY) {
+      for (const win of BrowserWindow.getAllWindows()) {
+        win.webContents.send('plan-active-changed', { value });
+      }
+    }
   });
 
   ipcMain.handle('prefs.deletePrefix', (_, prefix: string): number => {

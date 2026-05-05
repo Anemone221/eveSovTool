@@ -53,6 +53,11 @@ export function PlansPanel() {
   const [compareLoading, setCompareLoading] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
+  const [importingCsv, setImportingCsv] = useState(false);
+  const [csvImportName, setCsvImportName] = useState('');
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvImportError, setCsvImportError] = useState<string | null>(null);
+  const [csvImportWarnings, setCsvImportWarnings] = useState<string[]>([]);
   const activePlanId = useUi((s) => s.activePlanId);
   const setActivePlan = useUi((s) => s.setActivePlan);
   const setActivePlanReadOnly = useUi((s) => s.setActivePlanReadOnly);
@@ -147,6 +152,45 @@ export function PlansPanel() {
     setDuplicateValue('');
   };
 
+  const startCsvImport = () => {
+    setCsvImportName('');
+    setCsvFile(null);
+    setCsvImportError(null);
+    setCsvImportWarnings([]);
+    setImportingCsv(true);
+  };
+
+  const cancelCsvImport = () => {
+    setImportingCsv(false);
+    setCsvImportName('');
+    setCsvFile(null);
+    setCsvImportError(null);
+    setCsvImportWarnings([]);
+  };
+
+  const commitCsvImport = async () => {
+    const name = csvImportName.trim();
+    if (!name) { setCsvImportError('Plan name is required'); return; }
+    if (!csvFile) { setCsvImportError('Select a CSV file'); return; }
+    setCsvImportError(null);
+    try {
+      const text = await csvFile.text();
+      const result = await evesov.plans.importCsv(name, text);
+      setCsvImportWarnings(result.warnings);
+      if (result.warnings.length === 0) {
+        cancelCsvImport();
+      } else {
+        setImportingCsv(false);
+        setCsvFile(null);
+        setCsvImportName('');
+      }
+      await refresh();
+      setActivePlan(result.planId);
+    } catch (err) {
+      setCsvImportError(String(err));
+    }
+  };
+
   const runComparison = useCallback(async (idA: number, idB: number) => {
     setCompareLoading(true);
     setComparingFromId(null);
@@ -237,7 +281,45 @@ export function PlansPanel() {
           onChange={(e) => setNewName(e.target.value)}
         />
         <button type="submit" disabled={!newName.trim()}>+ Plan</button>
+        <button type="button" onClick={startCsvImport} title="Import plan from CSV">Import CSV</button>
       </form>
+      {importingCsv && (
+        <form
+          className="plans__csv-import"
+          onSubmit={(e) => { e.preventDefault(); void commitCsvImport(); }}
+        >
+          <input
+            autoFocus
+            type="text"
+            className="plans__csv-import-name"
+            placeholder="Plan name"
+            value={csvImportName}
+            onChange={(e) => setCsvImportName(e.target.value)}
+          />
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            className="plans__csv-import-file"
+            onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)}
+          />
+          <button type="submit" disabled={!csvImportName.trim() || !csvFile}>Import</button>
+          <button type="button" onClick={cancelCsvImport}>Cancel</button>
+          {csvImportError && (
+            <span className="plans__csv-import-error">{csvImportError}</span>
+          )}
+        </form>
+      )}
+      {csvImportWarnings.length > 0 && (
+        <div className="plans__csv-warnings">
+          <div className="plans__csv-warnings-header">
+            <span>Import warnings ({csvImportWarnings.length})</span>
+            <button type="button" onClick={() => setCsvImportWarnings([])}>✕</button>
+          </div>
+          <ul className="plans__csv-warnings-list">
+            {csvImportWarnings.map((w, i) => <li key={i}>{w}</li>)}
+          </ul>
+        </div>
+      )}
       <ul className="plans__list">
         {comparingFromId !== null && (
           <li className="plans__picker">

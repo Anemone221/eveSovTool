@@ -23,22 +23,33 @@ const ITEMS: ActivityItem[] = [
 interface ActivityBarProps {
   active: string | null;
   onActivate: (id: string) => void;
+  onPopOut: (id: string) => void;
 }
 
-export function ActivityBar({ active, onActivate }: ActivityBarProps) {
+export function ActivityBar({ active, onActivate, onPopOut }: ActivityBarProps) {
   return (
     <nav className="activity-bar" aria-label="Panels">
       {ITEMS.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          className={`activity-bar__item${active === item.id ? ' activity-bar__item--active' : ''}`}
-          onClick={() => onActivate(item.id)}
-          title={item.label}
-        >
-          <span className="activity-bar__glyph">{item.glyph}</span>
-          <span className="activity-bar__label">{item.label}</span>
-        </button>
+        <div key={item.id} className="activity-bar__entry">
+          <button
+            type="button"
+            className={`activity-bar__item${active === item.id ? ' activity-bar__item--active' : ''}`}
+            onClick={() => onActivate(item.id)}
+            title={item.label}
+          >
+            <span className="activity-bar__glyph">{item.glyph}</span>
+            <span className="activity-bar__label">{item.label}</span>
+          </button>
+          <button
+            type="button"
+            className="activity-bar__popout"
+            onClick={() => onPopOut(item.id)}
+            title={`Pop out ${item.label}`}
+            aria-label={`Pop out ${item.label}`}
+          >
+            ↗
+          </button>
+        </div>
       ))}
     </nav>
   );

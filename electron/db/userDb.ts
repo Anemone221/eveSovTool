@@ -1,5 +1,5 @@
 import { app } from 'electron';
-import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { is } from '@electron-toolkit/utils';
 import { fileURLToPath } from 'node:url';
@@ -30,6 +30,7 @@ export function getDb(): DB {
     }
     mkdirSync(dirname(target), { recursive: true });
     copyFileSync(seed, target);
+    chmodSync(target, 0o644);
     console.log(`[db] copied seed → ${target}`);
   }
   cached = openDatabase(target, existsSync(seed) ? seed : undefined);

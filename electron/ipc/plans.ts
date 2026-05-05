@@ -1296,4 +1296,329 @@ export function registerPlansIpc(): void {
 
     return { planId, findings };
   });
+
+  ipcMain.handle(
+    'plans.importCsv',
+    (_, planName: string, csvText: string): { planId: number; systemsImported: number; warnings: string[] } => {
+      const db = getDb();
+      const warnings: string[] = [];
+
+      const lines = csvText.split(/\r?\n/);
+      if (lines.length < 2) throw new Error('CSV has no data rows');
+
+      // ── Section 1: upgrade header (first row) ────────────────────────────
+      const header = parseCsvLine(lines[0]);
+      const colIndex = (name: string) =>
+        header.findIndex((h) => h.trim().toLowerCase() === name.trim().toLowerCase());
+
+      const COL_SYSTEM    = colIndex('System');
+      const COL_BEACON    = colIndex('Beacon');
+      const COL_BRIDGE    = colIndex('Bridge');
+      const COL_JAMMER    = colIndex('Jammer');
+      const COL_SUPERS    = colIndex('Supers');
+      const COL_MINOR1    = colIndex('Minor 1');
+      const COL_MINOR2    = colIndex('Minor 2');
+      const COL_MINOR3    = colIndex('Minor 3');
+      const COL_MAJOR1    = colIndex('Major 1');
+      const COL_MAJOR2    = colIndex('Major 2');
+      const COL_MAJOR3    = colIndex('Major 3');
+      const COL_MINING1   = colIndex('Mining 1');
+      const COL_MINING2   = colIndex('Mining 2');
+      const COL_MINING3   = colIndex('Mining 3');
+      const COL_EXPLO1    = colIndex('Explo 1');
+      const COL_EXPLO2    = colIndex('Explo 2');
+      const COL_EXPLO3    = colIndex('Explo 3');
+      const COL_EFFECTGEN = colIndex('Effect Gen');
+      const COL_POWER1    = colIndex('Power 1');
+      const COL_POWER2    = colIndex('Power 2');
+      const COL_POWER3    = colIndex('Power 3');
+      const COL_WF1       = colIndex('WF 1');
+      const COL_WF2       = colIndex('WF 2');
+      const COL_WF3       = colIndex('WF 3');
+
+      if (COL_SYSTEM === -1) throw new Error('CSV missing required "System" column');
+
+      const UPGRADE_COLS: Array<[number, string]> = [
+        [COL_BEACON,    'Cynosural Navigation'],
+        [COL_BRIDGE,    'Advanced Logistics Network'],
+        [COL_JAMMER,    'Cynosural Suppression'],
+        [COL_SUPERS,    'Supercapital Construction Facilities'],
+        [COL_MINOR1,    'Minor Threat Detection Array 1'],
+        [COL_MINOR2,    'Minor Threat Detection Array 2'],
+        [COL_MINOR3,    'Minor Threat Detection Array 3'],
+        [COL_MAJOR1,    'Major Threat Detection Array 1'],
+        [COL_MAJOR2,    'Major Threat Detection Array 2'],
+        [COL_MAJOR3,    'Major Threat Detection Array 3'],
+        [COL_MINING1,   'Isogen Prospecting Array 1'],
+        [COL_MINING2,   'Isogen Prospecting Array 2'],
+        [COL_MINING3,   'Isogen Prospecting Array 3'],
+        [COL_EXPLO1,    'Exploration Detector 1'],
+        [COL_EXPLO2,    'Exploration Detector 2'],
+        [COL_EXPLO3,    'Exploration Detector 3'],
+        [COL_EFFECTGEN, 'Gamma Stability Generator'],
+        [COL_POWER1,    'Power Monitoring Division 1'],
+        [COL_POWER2,    'Power Monitoring Division 2'],
+        [COL_POWER3,    'Power Monitoring Division 3'],
+        [COL_WF1,       'Workforce Mecha-Tooling 1'],
+        [COL_WF2,       'Workforce Mecha-Tooling 2'],
+        [COL_WF3,       'Workforce Mecha-Tooling 3'],
+      ].filter(([col]) => col !== -1) as Array<[number, string]>;
+
+      const validUpgrades = new Set<string>(
+        (db.prepare('SELECT name FROM upgrades').all() as Array<{ name: string }>).map((r) => r.name)
+      );
+      for (const [, upgName] of UPGRADE_COLS) {
+        if (!validUpgrades.has(upgName)) {
+          warnings.push(`Upgrade "${upgName}" not found in database — column will be skipped`);
+        }
+      }
+
+      // ── Parse upgrade rows (section 1) ───────────────────────────────────
+      // Stop when we hit the matrix section header (col 0 starts with "Importer")
+      // or a "Total" sentinel row or a blank line that precedes the matrix.
+      interface UpgradeRow { systemName: string; upgrades: string[] }
+      const upgradeRows: UpgradeRow[] = [];
+      let matrixHeaderLineIdx = -1;
+
+      for (let i = 1; i < lines.length; i++) {
+        const cells = parseCsvLine(lines[i]);
+        const col0 = cells[0]?.trim() ?? '';
+
+        // Detect the matrix section header.
+        if (col0.toLowerCase().startsWith('importer')) {
+          matrixHeaderLineIdx = i;
+          break;
+        }
+
+        // Skip blank rows, the "Total" summary row, and instruction rows.
+        if (!col0 || col0.toLowerCase() === 'total') continue;
+
+        const systemName = cells[COL_SYSTEM]?.trim();
+        if (!systemName) continue;
+
+        const upgrades: string[] = [];
+        for (const [col, upgName] of UPGRADE_COLS) {
+          const cell = cells[col]?.trim().toLowerCase();
+          const present = cell === '1' || cell === 'true' || cell === 'yes' || cell === 'y';
+          if (present && validUpgrades.has(upgName)) {
+            upgrades.push(upgName);
+          }
+        }
+        upgradeRows.push({ systemName, upgrades });
+      }
+
+      if (upgradeRows.length === 0) throw new Error('No upgrade data rows found in CSV');
+
+      // ── Resolve system names ──────────────────────────────────────────────
+      const lookupStmt = db.prepare('SELECT id, name FROM systems WHERE name = ? LIMIT 1');
+      interface SystemLookup { id: number; name: string }
+
+      const systemIdByName = new Map<string, number>();
+      for (const row of upgradeRows) {
+        if (systemIdByName.has(row.systemName)) continue;
+        const found = lookupStmt.get(row.systemName) as SystemLookup | undefined;
+        if (found) {
+          systemIdByName.set(row.systemName, found.id);
+        } else {
+          warnings.push(`System "${row.systemName}" not found in database — skipped`);
+        }
+      }
+
+      if (systemIdByName.size === 0) throw new Error('No systems could be resolved from the CSV');
+
+      // ── Section 2: transfer matrix ────────────────────────────────────────
+      // Header row format: Importer\Exporter, State, <sys1>, <sys2>, ...
+      // Each data row: <importerName>, <Import|Export|blank>, <amount>, ...
+      // A non-zero cell at (importerRow, exporterCol) means:
+      //   exporterName → importerName with that transfer amount.
+
+      // The matrix header exporter columns are in the same order as the upgrade
+      // section rows. Build a positional array so that a matrix header name that
+      // fails DB lookup (e.g. a typo like GIH-GZ vs GIH-ZG) can fall back to
+      // the upgrade-section system at the same column position.
+      const upgradeRowNames: string[] = upgradeRows.map((r) => r.systemName);
+
+      const resolveSystem = (name: string, matrixColIndex?: number): number | undefined => {
+        // 1. Exact match from the upgrade section.
+        const direct = systemIdByName.get(name);
+        if (direct !== undefined) return direct;
+        // 2. Direct DB lookup (handles systems in the matrix but not the upgrade section).
+        const dbRow = lookupStmt.get(name) as SystemLookup | undefined;
+        if (dbRow) return dbRow.id;
+        // 3. Positional fallback: the matrix exporter at this column index corresponds
+        //    to the upgrade-section row at the same index (they share ordering).
+        if (matrixColIndex !== undefined) {
+          const fallbackName = upgradeRowNames[matrixColIndex];
+          if (fallbackName) {
+            const fallbackId = systemIdByName.get(fallbackName);
+            if (fallbackId !== undefined) return fallbackId;
+          }
+        }
+        return undefined;
+      };
+
+      interface TransferRoute {
+        exporterName: string;
+        importerName: string;
+        amount: number;
+        exporterColIndex: number;
+      }
+      const routes: TransferRoute[] = [];
+      const matrixStates = new Map<string, 'import' | 'export' | null>();
+
+      if (matrixHeaderLineIdx !== -1) {
+        const matrixHeader = parseCsvLine(lines[matrixHeaderLineIdx]);
+        // Col 0: "Importer\Exporter", Col 1: "State", Col 2+: exporter system names
+        const exporterNames: string[] = matrixHeader.slice(2).map((h) => h.trim());
+
+        for (let i = matrixHeaderLineIdx + 1; i < lines.length; i++) {
+          const cells = parseCsvLine(lines[i]);
+          const importerName = cells[0]?.trim();
+          if (!importerName) continue;
+
+          const stateRaw = cells[1]?.trim().toLowerCase() ?? '';
+          const state: 'import' | 'export' | null =
+            stateRaw === 'import' ? 'import' :
+            stateRaw === 'export' ? 'export' :
+            null;
+
+          if (state !== null) matrixStates.set(importerName, state);
+
+          // Scan all rows for non-zero transfer amounts — the amount appears in
+          // the receiving system's row regardless of its State label.
+          for (let c = 0; c < exporterNames.length; c++) {
+            const amount = parseFloat(cells[c + 2]?.trim() || '0') || 0;
+            if (amount > 0) {
+              routes.push({ exporterName: exporterNames[c], importerName, amount, exporterColIndex: c });
+            }
+          }
+        }
+      }
+
+      // ── Build status map from routes ──────────────────────────────────────
+      const statusMap = new Map<number, {
+        status: 'import' | 'export' | 'transit';
+        transferAmount: number;
+        destSystemId: number | null;
+      }>();
+
+      // Apply explicit matrix states first.
+      for (const [sysName, state] of matrixStates) {
+        if (state === null) continue;
+        const sysId = resolveSystem(sysName);
+        if (!sysId) continue;
+        if (!statusMap.has(sysId)) {
+          statusMap.set(sysId, { status: state, transferAmount: 0, destSystemId: null });
+        }
+      }
+
+      // Process each route: set export amount + dest, mark transit systems.
+      for (const route of routes) {
+        const exporterId = resolveSystem(route.exporterName, route.exporterColIndex);
+        const importerId = resolveSystem(route.importerName);
+
+        if (!exporterId) {
+          warnings.push(`Transfer route: exporter "${route.exporterName}" not found — skipped`);
+          continue;
+        }
+        if (!importerId) {
+          warnings.push(`Transfer route: importer "${route.importerName}" not found — skipped`);
+          continue;
+        }
+
+        statusMap.set(exporterId, { status: 'export', transferAmount: route.amount, destSystemId: importerId });
+        statusMap.set(importerId, { status: 'import', transferAmount: 0, destSystemId: null });
+
+        const path = findPath(db, exporterId, importerId);
+        if (!path.found) {
+          warnings.push(`Route "${route.exporterName}" → "${route.importerName}": more than 3 jumps apart — transit systems not set`);
+        } else {
+          for (const interId of path.intermediates) {
+            if (!statusMap.has(interId)) {
+              statusMap.set(interId, { status: 'transit', transferAmount: 0, destSystemId: null });
+            }
+          }
+        }
+      }
+
+      // ── Write to DB ───────────────────────────────────────────────────────
+      let systemsImported = 0;
+      let createdId = -1;
+
+      db.transaction(() => {
+        const now = new Date().toISOString();
+        const result = db
+          .prepare('INSERT INTO plans (name, created_at, updated_at) VALUES (?, ?, ?)')
+          .run(planName.trim(), now, now);
+        createdId = Number(result.lastInsertRowid);
+
+        const insScope = db.prepare(
+          "INSERT OR IGNORE INTO plan_scopes (plan_id, scope_type, scope_id) VALUES (?, 'system', ?)"
+        );
+        const insUpgrade = db.prepare(
+          `INSERT INTO plan_upgrades (plan_id, system_id, upgrade_name, ordering)
+           VALUES (?, ?, ?, COALESCE(
+             (SELECT MAX(ordering) + 1 FROM plan_upgrades WHERE plan_id = ? AND system_id = ?), 0))
+           ON CONFLICT(plan_id, system_id, upgrade_name) DO NOTHING`
+        );
+        const insStatus = db.prepare(
+          `INSERT INTO plan_system_status
+             (plan_id, system_id, status, transfer_amount, destination_system_id, export_all_unused)
+           VALUES (?, ?, ?, ?, ?, 0)
+           ON CONFLICT(plan_id, system_id) DO NOTHING`
+        );
+
+        for (const row of upgradeRows) {
+          const systemId = systemIdByName.get(row.systemName);
+          if (!systemId) continue;
+          insScope.run(createdId, systemId);
+          for (const upgName of row.upgrades) {
+            insUpgrade.run(createdId, systemId, upgName, createdId, systemId);
+            if (/Advanced Logistics Network/i.test(upgName)) {
+              db.prepare(
+                `INSERT OR IGNORE INTO plan_structures (plan_id, system_id, structure_type, location, source)
+                 VALUES (?, ?, 'Ansiblex', 'Gate', 'upgrade')`
+              ).run(createdId, systemId);
+            }
+          }
+          systemsImported++;
+        }
+
+        // Transit systems may not be in upgradeRows — ensure they get a scope entry.
+        for (const [systemId, st] of statusMap) {
+          insScope.run(createdId, systemId);
+          insStatus.run(createdId, systemId, st.status, st.transferAmount, st.destSystemId);
+        }
+
+        db.prepare('UPDATE plans SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), createdId);
+      })();
+
+      broadcastPlanChanged(createdId);
+      return { planId: createdId, systemsImported, warnings };
+    }
+  );
+}
+
+function parseCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current);
+  return result;
 }

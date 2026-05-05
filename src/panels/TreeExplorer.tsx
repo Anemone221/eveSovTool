@@ -15,7 +15,7 @@ type GroupKey = 'claimed' | 'unclaimed' | 'other';
 export function TreeExplorer() {
   const [tree, setTree] = useState<TreeNodeRegion[]>([]);
   const [filter, setFilter] = useState('');
-  const [sovOnly, setSovOnlyState] = useState(false);
+  const [sovOnly, setSovOnlyState] = useState(true);
   const [claimedOnly, setClaimedOnlyState] = useState(false);
   const [groupOpen, setGroupOpenState] = useState<Record<GroupKey, boolean>>({
     claimed: true,
@@ -38,7 +38,7 @@ export function TreeExplorer() {
   useEffect(() => {
     void evesov.data.tree().then(setTree);
     void evesov.prefs.get(PREF_SOV_ONLY).then((v) => {
-      if (v === 'true') setSovOnlyState(true);
+      if (v !== null) setSovOnlyState(v === 'true');
     });
     void evesov.prefs.get(PREF_CLAIMED_ONLY).then((v) => {
       if (v === 'true') setClaimedOnlyState(true);

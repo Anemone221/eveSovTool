@@ -62,11 +62,14 @@ const api: EveSovApi = {
     removeAlnLink: (planId, systemId) =>
       ipcRenderer.invoke('plans.removeAlnLink', planId, systemId),
     searchSystems: (query) =>
-      ipcRenderer.invoke('plans.searchSystems', query)
+      ipcRenderer.invoke('plans.searchSystems', query),
+    importCsv: (planName, csvText) =>
+      ipcRenderer.invoke('plans.importCsv', planName, csvText),
   },
   windows: {
     openPanel: (panelId, params) => ipcRenderer.invoke('windows.openPanel', panelId, params),
-    dockBack: (windowId) => ipcRenderer.invoke('windows.dockBack', windowId)
+    dockBack: (windowId) => ipcRenderer.invoke('windows.dockBack', windowId),
+    selectAndFocusSystem: (systemId) => ipcRenderer.invoke('windows.selectAndFocusSystem', systemId),
   },
   exports: {
     capturePng: (filename, dataUrl, meta) =>
