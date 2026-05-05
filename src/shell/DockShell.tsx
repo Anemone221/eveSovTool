@@ -17,6 +17,7 @@ import { StructuresPage } from '@/panels/StructuresPage';
 import { RegionMap } from '@/panels/RegionMap';
 import { ExportsPage } from '@/panels/ExportsPage';
 import { MoonScansPage } from '@/panels/MoonScansPage';
+import { AuditPanel } from '@/panels/AuditPanel';
 import { SettingsPage } from '@/panels/SettingsPage';
 import { ActivityBar } from './ActivityBar';
 import { evesov } from '@/api/evesov';
@@ -38,6 +39,7 @@ const components: Record<string, React.FunctionComponent<IDockviewPanelProps>> =
   regionMap: () => <RegionMap />,
   exportsPage: () => <ExportsPage />,
   moonScansPage: () => <MoonScansPage />,
+  auditPanel: () => <AuditPanel />,
   settingsPage: () => <SettingsPage />
 };
 
@@ -60,6 +62,7 @@ const PANELS: Record<string, PanelDefinition> = {
   regionMap: { id: 'regionMap', componentId: 'regionMap', title: 'Region Map' },
   moonScans: { id: 'moonScans', componentId: 'moonScansPage', title: 'Moon Scans' },
   exports: { id: 'exports', componentId: 'exportsPage', title: 'Exports' },
+  audit: { id: 'audit', componentId: 'auditPanel', title: 'Audit' },
   settings: { id: 'settings', componentId: 'settingsPage', title: 'Settings' }
 };
 

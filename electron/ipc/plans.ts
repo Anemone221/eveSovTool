@@ -6,7 +6,9 @@ import type {
   AlnLink,
   AlnTarget,
   AssignResult,
+  AuditFinding,
   ClearUpgradesScope,
+  PlanAuditResult,
   PlanMatrix,
   PlanMatrixSystem,
   PlanRollup,
@@ -1189,4 +1191,109 @@ export function registerPlansIpc(): void {
       return rows.map((r) => ({ systemId: r.id, systemName: r.name }));
     }
   );
+
+  ipcMain.handle('plans.audit', (_, planId: number): PlanAuditResult => {
+    const db = getDb();
+
+    // Fetch all systems in the plan with their balance and upgrade list.
+    interface AuditRow extends RollupDbRow {
+      security_status: number | null;
+    }
+    const rows = db.prepare(BALANCE_SQL_FOR_PLAN).all({ planId }) as AuditRow[];
+
+    // Costs of the cheapest tier-1 variants we check for spare capacity.
+    const oreProspRow = db
+      .prepare(`SELECT power, workforce FROM upgrades WHERE name LIKE '% Prospecting Array 1' LIMIT 1`)
+      .get() as { power: number; workforce: number } | undefined;
+    const majorThreatRow = db
+      .prepare(`SELECT power, workforce FROM upgrades WHERE name = 'Major Threat Detection Array 1'`)
+      .get() as { power: number; workforce: number } | undefined;
+
+    const oreProspCost = oreProspRow ?? { power: 0, workforce: 0 };
+    const majorThreatCost = majorThreatRow ?? { power: 0, workforce: 0 };
+
+    // "Ishtar-capable" = system has any Major Threat Detection Array (grants Forsaken Hubs at minimum).
+    function hasIshtarSite(upgrades: string[]): boolean {
+      return upgrades.some((name) => /^Major Threat Detection Array \d$/.test(name));
+    }
+
+    function miningTier(upgrades: string[]): number {
+      let best = 0;
+      for (const name of upgrades) {
+        const m = name.match(/Prospecting Array (\d)$/);
+        if (m) best = Math.max(best, parseInt(m[1], 10));
+      }
+      return best;
+    }
+
+    function hasProspecting(upgrades: string[]): boolean {
+      return upgrades.some((n) => /Prospecting Array/.test(n));
+    }
+
+    function hasMajorThreat(upgrades: string[]): boolean {
+      return upgrades.some((n) => /^Major Threat Detection Array/.test(n));
+    }
+
+    const findings: AuditFinding[] = [];
+
+    for (const r of rows) {
+      const upgrades = r.upgrade_names ? r.upgrade_names.split(String.fromCharCode(31)) : [];
+      const remainPower = r.available_power - r.consumed_power;
+      const remainWorkforce = r.available_workforce - r.consumed_workforce;
+      const loc = { systemId: r.system_id, systemName: r.system_name, constellationName: r.constellation_name, regionName: r.region_name };
+
+      // 1. No Ishtar-capable sites AND mining below tier 2
+      if (!hasIshtarSite(upgrades) && miningTier(upgrades) < 2) {
+        findings.push({
+          ...loc,
+          kind: 'no-ishtar-sites-low-mining',
+          detail: 'No Major Threat Detection Array assigned and mining tier below 2.',
+        });
+      }
+
+      // 2. Over power or workforce
+      if (r.consumed_power > r.available_power) {
+        findings.push({
+          ...loc,
+          kind: 'over-power',
+          detail: `Power exceeded: ${r.consumed_power} / ${r.available_power} used.`,
+        });
+      }
+      if (r.consumed_workforce > r.available_workforce) {
+        findings.push({
+          ...loc,
+          kind: 'over-workforce',
+          detail: `Workforce exceeded: ${r.consumed_workforce} / ${r.available_workforce} used.`,
+        });
+      }
+
+      // 3. Spare capacity for another Ore Prospecting Array (any mineral, tier 1)
+      if (
+        remainPower >= oreProspCost.power &&
+        remainWorkforce >= oreProspCost.workforce &&
+        hasProspecting(upgrades)
+      ) {
+        findings.push({
+          ...loc,
+          kind: 'fits-ore-prospecting',
+          detail: `${remainPower} power / ${remainWorkforce} workforce remaining — fits another Ore Prospecting Array.`,
+        });
+      }
+
+      // 4. Spare capacity for another Major Threat Detection Array 1
+      if (
+        remainPower >= majorThreatCost.power &&
+        remainWorkforce >= majorThreatCost.workforce &&
+        hasMajorThreat(upgrades)
+      ) {
+        findings.push({
+          ...loc,
+          kind: 'fits-major-threat',
+          detail: `${remainPower} power / ${remainWorkforce} workforce remaining — fits a Major Threat Detection Array upgrade.`,
+        });
+      }
+    }
+
+    return { planId, findings };
+  });
 }
