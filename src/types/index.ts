@@ -298,6 +298,7 @@ export interface EveSovApi {
     prefs: {
         get: (key: string) => Promise<string | null>;
         set: (key: string, value: string) => Promise<void>;
+        deletePrefix: (prefix: string) => Promise<number>;
     };
     data: {
         tree: () => Promise<TreeNodeRegion[]>;

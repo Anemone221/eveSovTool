@@ -17,4 +17,11 @@ export function registerPrefsIpc(): void {
       )
       .run(key, value);
   });
+
+  ipcMain.handle('prefs.deletePrefix', (_, prefix: string): number => {
+    const result = getDb()
+      .prepare('DELETE FROM preferences WHERE key LIKE ?')
+      .run(`${prefix}%`);
+    return result.changes;
+  });
 }

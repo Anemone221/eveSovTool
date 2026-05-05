@@ -17,6 +17,7 @@ import { StructuresPage } from '@/panels/StructuresPage';
 import { RegionMap } from '@/panels/RegionMap';
 import { ExportsPage } from '@/panels/ExportsPage';
 import { MoonScansPage } from '@/panels/MoonScansPage';
+import { SettingsPage } from '@/panels/SettingsPage';
 import { ActivityBar } from './ActivityBar';
 import { evesov } from '@/api/evesov';
 import { useUi } from '@/state/uiStore';
@@ -36,7 +37,8 @@ const components: Record<string, React.FunctionComponent<IDockviewPanelProps>> =
   structuresPage: () => <StructuresPage />,
   regionMap: () => <RegionMap />,
   exportsPage: () => <ExportsPage />,
-  moonScansPage: () => <MoonScansPage />
+  moonScansPage: () => <MoonScansPage />,
+  settingsPage: () => <SettingsPage />
 };
 
 interface PanelDefinition {
@@ -57,7 +59,8 @@ const PANELS: Record<string, PanelDefinition> = {
   structures: { id: 'structures', componentId: 'structuresPage', title: 'Structures' },
   regionMap: { id: 'regionMap', componentId: 'regionMap', title: 'Region Map' },
   moonScans: { id: 'moonScans', componentId: 'moonScansPage', title: 'Moon Scans' },
-  exports: { id: 'exports', componentId: 'exportsPage', title: 'Exports' }
+  exports: { id: 'exports', componentId: 'exportsPage', title: 'Exports' },
+  settings: { id: 'settings', componentId: 'settingsPage', title: 'Settings' }
 };
 
 export function DockShell() {

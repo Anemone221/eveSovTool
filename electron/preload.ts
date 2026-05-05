@@ -5,7 +5,8 @@ const api: EveSovApi = {
   ping: () => ipcRenderer.invoke('ping'),
   prefs: {
     get: (key) => ipcRenderer.invoke('prefs.get', key),
-    set: (key, value) => ipcRenderer.invoke('prefs.set', key, value)
+    set: (key, value) => ipcRenderer.invoke('prefs.set', key, value),
+    deletePrefix: (prefix) => ipcRenderer.invoke('prefs.deletePrefix', prefix)
   },
   data: {
     tree: () => ipcRenderer.invoke('data.tree'),

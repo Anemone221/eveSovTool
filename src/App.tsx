@@ -3,6 +3,7 @@ import { DockShell } from '@/shell/DockShell';
 import { OpsecRoot } from '@/components/OpsecRoot';
 import { evesov } from '@/api/evesov';
 import { useUi } from '@/state/uiStore';
+import { hydrateTheme } from '@/state/theme';
 
 const APP_NAME = 'Sov Fitting Tool (SFT)';
 
@@ -46,6 +47,10 @@ function AppHeader() {
 }
 
 export function App() {
+  useEffect(() => {
+    void hydrateTheme();
+  }, []);
+
   return (
     <OpsecRoot>
       <div className="app-shell">

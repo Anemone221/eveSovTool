@@ -1,33 +1,67 @@
 # Settings
 
 ## Purpose
-User-configurable UI preferences, starting with color palette / theme selection. Lets users switch between preset themes or define custom accent colors.
+The catch-all settings surface for the app. A single `SettingsPage` panel with three tabs — **General**, **Preferences**, **Data** — covering theme/palette, default open panels, API sync controls, upgrade-value editing, system resource overrides, CSV re-import, and purge controls.
+
+This feature absorbs what was previously planned as a standalone Data Management panel. There is no separate DataManagementPage — its contents live in the Settings → Data tab. See [Data-Management.md](Data-Management.md) for the deeper schema/IPC spec backing that tab.
 
 ## Schema
-No new tables. Theme preferences are stored in the existing `preferences` table under `settings.*` keys:
+No new tables for settings themselves; everything persists via the existing `preferences` table under `settings.*` keys. Tables consumed by the Data tab (`upgrades_seed`, `system_adm_activities`, market-data table) are documented in [Data-Management.md](Data-Management.md).
 
-- `settings.theme` → `'abyss' | 'caldari' | 'high-contrast'` (default: `'abyss'`)
+`settings.*` pref keys:
+
+General
+- `settings.theme` → `'abyss' | 'caldari' | 'high-contrast'` (default `'abyss'`)
 - `settings.color.<token>` → hex string (e.g. `settings.color.accent` → `'#4a90d9'`)
+- `settings.marketSync.enabled` → boolean (master kill switch)
+
+Preferences
+- `settings.defaultPanels` → JSON array of panel ids (subset of `ACTIVITY_PANELS` in [src/shell/ActivityBar.tsx](../../src/shell/ActivityBar.tsx)). Empty = restore last layout (current behavior).
+
+Data
+- `settings.dataSync.market.enabled` → boolean
+- `settings.dataSync.sov.enabled` → boolean
+- `settings.dataSync.intervalMode` → `'startup' | '60m' | '5h' | '1d'`
+- `settings.dataSync.lastSync.<source>` → ISO timestamp, written by sync jobs when they ship; UI shows "Never" if absent.
 
 ## IPC
-Reuses existing `prefs.get(key)` / `prefs.set(key, value)` — no new channels.
+- Reuses `prefs.get` / `prefs.set` for all settings persistence.
+- New `prefs.deletePrefix(prefix)` for the "Reset program defaults" button.
+- The Data tab consumes every channel in [Data-Management.md](Data-Management.md) (`data.updateUpgrade`, `data.resetUpgrade`, `data.updateSystemResource`, `data.refreshSov`, `data.exportTemplates`, `data.purgeMarketData`, `data.hasMarketData`, `data.importAdmActivities`) plus new purge channels: `data.purgeStations`, `data.purgeMoonScans`, `plans.purgeAll`, `plans.purgeAllUpgrades`.
 
 ## Critical files
 
-- `src/panels/SettingsPage.tsx` — theme picker, custom color inputs.
-- `src/styles.css` — per-theme CSS custom property blocks (`:root[data-theme="caldari"] { --bg: …; }`) and the token definitions (`--bg`, `--accent`, `--ok`, `--danger`, `--dim`, etc.).
-- `src/App.tsx` (or `src/shell/DockShell.tsx`) — reads `settings.theme` pref on startup; sets `document.documentElement.setAttribute('data-theme', theme)`.
-- `src/shell/ActivityBar.tsx` — adds Settings item (gear icon).
+- `src/panels/SettingsPage.tsx` — tabbed shell. Sub-components: `GeneralSection`, `PreferencesSection`, `DataSection`.
+- `src/styles.css` — `.settings`, `.settings__tabs`, `.settings__tab`, `.settings__tab--active`, `.settings__panel`, `.settings__row`, `.settings__group` blocks.
+- `src/App.tsx` (or `src/shell/DockShell.tsx`) — hydrates `settings.theme` + `settings.color.*` on startup; reads `settings.defaultPanels` after layout restore and ensures listed panels are open.
+- `src/shell/DockShell.tsx` — registers `settingsPage` component and `settings` panel definition.
+- `src/shell/ActivityBar.tsx` — adds Settings item (gear glyph) as the only data/config entrypoint; no separate Data Management item.
+- `electron/ipc/prefs.ts` — adds `prefs.deletePrefix`.
+- `electron/ipc/data.ts`, `electron/ipc/plans.ts` — new purge handlers; full Data-tab IPC surface.
+- `electron/preload.ts`, `src/types/index.ts` — expose and type new channels.
 
 ## Key decisions
 
-- **Theme application**: a `data-theme` attribute on `<html>` drives per-theme CSS custom property overrides. No runtime style injection — just a class/attribute toggle. Theme change is immediate (no reload).
-- **Preset themes**: Abyss (existing dark, default), Caldari (lighter blue-grey), High-contrast (high-contrast dark). Each is a block of CSS custom property overrides scoped to the `data-theme` value.
-- **Custom colors**: `<input type="color">` per token. Values saved to `preferences` and applied by overriding the custom property on `document.documentElement.style` directly in the renderer. On startup, custom color prefs are applied after the theme attribute, so they take precedence.
-- Hydration order on startup: (1) set `data-theme` from `settings.theme`, (2) apply any `settings.color.*` overrides — both happen in the app entry before first render to avoid a flash.
-- No new IPC, no schema changes, no new dependencies.
+- **Single page, three tabs.** Settings is the umbrella; Data Management is merged in rather than living as a peer panel. Avoids duplicate entrypoints and keeps "where do I change X?" answerable in one place.
+- **Theme application.** `data-theme` attribute on `<html>` drives per-theme CSS custom property overrides. Theme change is immediate (no reload). Custom color overrides applied on `document.documentElement.style` after the theme attribute, so they take precedence.
+- **Hydration order on startup**: (1) set `data-theme` from `settings.theme`, (2) apply `settings.color.*` overrides, (3) restore Dockview layout, (4) ensure `settings.defaultPanels` are open. All before first interaction to avoid flashes.
+- **Master vs per-source sync toggles.** `settings.marketSync.enabled` is the kill switch; per-source toggles in the Data tab are AND-ed with it.
+- **Reset program defaults.** `prefs.deletePrefix('settings.')`, then re-apply theme attribute and reload. Layout/active-plan prefs (under `dock.*`) are not touched.
+- **Purges** use `window.confirm()` (allowed per CLAUDE.md) and broadcast `data-refreshed` / `plan-changed` so other panels re-fetch.
 
 ## Open questions / next steps
 
-- Export / import theme as a JSON preset for sharing.
-- Per-panel color overrides (e.g. different accent in Matrix vs Inspector).
+- [ ] Implement General tab — theme picker + custom colors, master market-sync toggle, "Reset program defaults" (needs `prefs.deletePrefix` IPC).
+- [ ] Implement Preferences tab — multi-select default open panels (`settings.defaultPanels`), wired into DockShell startup after layout restore.
+- [ ] Implement Data tab — Sync subsection: per-source toggles (Market, Sov), interval radio (`startup` / `60m` / `5h` / `1d`), per-source "Last sync" display ("Never" until Data Sync ships).
+- [ ] Implement Data tab — Upgrades editor table with inline edits, per-row reset (requires `upgrades_seed` shadow table; see Data-Management.md).
+- [ ] Implement Data tab — System resource overrides (system search → editable star power, per-planet power/workforce).
+- [ ] Implement Data tab — CSV re-import UI over `data.refreshSov` with inline import report.
+- [ ] Implement Data tab — Purge group: Market Data (gated on `data.hasMarketData()`), All Plans, All Plan Upgrades, Stations, Moon Scan Data.
+- [ ] Add `prefs.deletePrefix` IPC and wire to Reset Defaults.
+- [ ] Add `data.purgeStations`, `data.purgeMoonScans`, `plans.purgeAll`, `plans.purgeAllUpgrades` IPC handlers.
+- [ ] Update [Data-Management.md](Data-Management.md) with a header note that it lives inside the Settings → Data tab.
+- [ ] Update [INDEX.md](INDEX.md) row for Settings to mention default panels, sync, and data management; update Data-Management row to "schema/IPC for the Settings → Data tab".
+- [ ] Future: export / import theme as a JSON preset for sharing.
+- [ ] Future: per-panel color overrides (e.g. different accent in Matrix vs Inspector).
+- [ ] Future: SDE refresh flow once a re-importable SDE pipeline exists.
