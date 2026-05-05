@@ -11,7 +11,7 @@ const STABILITY_GENS = new Set([
   'Electric Stability Generator',
   'Exotic Stability Generator',
   'Gamma Stability Generator',
-  'Plasma Stability Geneartor', // sic — matches the DB value
+  'Plasma Stability Generator',
 ]);
 
 export function registerMapIpc(): void {

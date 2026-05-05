@@ -66,7 +66,7 @@ export const STABILITY_ICONS: Record<string, string> = {
   'Electric Stability Generator': effectElectric,
   'Exotic Stability Generator': effectExotic,
   'Gamma Stability Generator': effectGamma,
-  'Plasma Stability Geneartor': effectPlasma, // sic — matches DB value
+  'Plasma Stability Generator': effectPlasma,
 };
 
 export const MINING_ICONS: Record<1 | 2 | 3, string> = {
