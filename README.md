@@ -13,6 +13,19 @@ A local desktop tool for planning EVE Online sovereignty (sov) upgrades.
 
 `eveSovTool` is an Electron desktop app for capsuleers and sov-holding alliances who want to plan, balance, and compare their sov upgrades against CCP's current sov mechanics — without standing up a spreadsheet from scratch every time. Pick any combination of regions, constellations, and systems, drop upgrades onto them, and the tool checks every system's resource budget (Power, Workforce, Superionic Ice/h, Magmatic Gas/h) against what its planets and star can supply. Plans, layouts, and preferences are stored locally; the app never uploads or downloads anything.
 
+## Installing
+
+### MacOS
+
+Due to Apple's requirement that all apps on MacOS must be [Signed & Notarized](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution) after adding the app to the Applications folder you will get an error when trying to launch it.
+
+![Screenshot of MacOS Error saying "Sov Fitting Tool Is Damaged and Can’t Be Opened. You Should Move It To The Trash"](/docs/install/macos/unsignederror.png)
+
+To remove this message and run the app you can remove the quarantine flag from the app with the following terminal command.
+
+`xattr -c /Applications/Sov\ Fitting\ Tool.app`
+
+
 ## Screenshots
 
 > *Coming once the UI settles.* The activity bar gives access to: **Universe explorer**, **System detail**, **Plans**, **Plan Inspector**, **Assignment Matrix**, **Sites overview**, and **Upgrade catalog**. Panels are dockable and remember their layout between sessions.
