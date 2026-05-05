@@ -115,6 +115,7 @@ export function registerMapIpc(): void {
             hasAnsiblex: false,
             hasCynoBeacon: false,
             hasCynoJammer: false,
+            hasSupercap: false,
             hasRelicSites: false,
             relicUpgrades: [],
             moonCounts: null,
@@ -170,6 +171,11 @@ export function registerMapIpc(): void {
 
         if (name === 'Cynosural Suppression') {
           overlay.hasCynoJammer = true;
+          continue;
+        }
+
+        if (name === 'Supercapital Construction Facilities') {
+          overlay.hasSupercap = true;
           continue;
         }
       }

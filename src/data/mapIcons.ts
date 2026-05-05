@@ -82,4 +82,5 @@ export {
   jumpPortal,
   relicSite,
   a0Sun,
+  citadelXL as supercapIcon,
 };

@@ -280,6 +280,7 @@ export interface MapSystemOverlay {
     hasAnsiblex: boolean;
     hasCynoBeacon: boolean;
     hasCynoJammer: boolean;
+    hasSupercap: boolean;
     hasRelicSites: boolean;
     relicUpgrades: string[];
     moonCounts: MoonCounts | null;

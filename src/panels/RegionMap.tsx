@@ -16,6 +16,7 @@ import {
   cynoJammer,
   jumpPortal,
   relicSite,
+  supercapIcon,
 } from '@/data/mapIcons';
 import { siteEffectsFor, aggregateGrants, formatGrants } from '@/data/effects';
 import { producibleFromPlanets, highestProducibleTier } from '@/data/piRecipes';
@@ -584,6 +585,10 @@ export function RegionMap() {
       if (sys.hasCynoJammer) {
         upgradeIcons.push(dbIcon('Cynosural Suppression', cynoJammer));
         upgradeTips.push('Cynosural Suppression\nBlocks cynos (except covert)');
+      }
+      if (sys.hasSupercap) {
+        upgradeIcons.push(dbIcon('Supercapital Construction Facilities', supercapIcon));
+        upgradeTips.push('Supercapital Construction Facilities');
       }
       if (sys.hasRelicSites) {
         upgradeIcons.push(dbIconAny(sys.relicUpgrades, relicSite));
