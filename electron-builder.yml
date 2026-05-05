@@ -1,6 +1,6 @@
 appId: com.evesov.tool
-productName: EVE Sov Tool
-copyright: Copyright © 2024 EVE Sov Tool Contributors
+productName: Sov Fitting Tool
+copyright: Copyright © 2024 Sov Fitting Tool (SFT) Contributors
 
 directories:
     buildResources: build
@@ -36,6 +36,6 @@ nsis:
     uninstallerIcon: app.ico
     createDesktopShortcut: true
     createStartMenuShortcut: true
-    shortcutName: EVE Sov Tool
+    shortcutName: Sov Fitting Tool
 
 publish: null

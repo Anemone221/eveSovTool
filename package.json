@@ -1,8 +1,8 @@
 {
   "name": "eve-sov-tool",
   "version": "0.0.1",
-  "description": "EVE Online sovereignty upgrade planning tool",
-  "author": "EVE Sov Tool Contributors",
+  "description": "Sov Fitting Tool (SFT) — EVE Online sovereignty upgrade planning tool",
+  "author": "Sov Fitting Tool (SFT) Contributors",
   "main": "out/main/main.js",
   "private": true,
   "type": "module",

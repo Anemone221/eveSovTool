@@ -59,6 +59,14 @@ input[type="search"]:focus { border-color: var(--accent); }
   text-transform: uppercase;
   color: var(--fg-dim);
 }
+.app-shell__title { color: var(--fg-dim); }
+.app-shell__sep { color: var(--fg-mute); }
+.app-shell__plan {
+  color: var(--accent);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
 .app-shell__main {
   flex: 1;
   display: flex;
@@ -354,16 +362,26 @@ table.grid td.cost-produces { color: var(--ok); }
 .plans__create button { background: var(--accent); color: #0c1015; border-radius: 4px; padding: 4px 10px; font-weight: 600; }
 .plans__create button:disabled { opacity: 0.5; cursor: not-allowed; }
 .plans__list { list-style: none; margin: 0; padding: 0 0 12px; flex: 1; overflow: auto; }
-.plans__row { display: flex; align-items: center; gap: 6px; padding: 4px 8px; }
+.plans__header { display: grid; grid-template-columns: 1fr 110px 110px auto auto auto; align-items: center; gap: 6px; padding: 4px 8px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-mute); border-bottom: 1px solid var(--border); }
+.plans__header-name { text-align: left; }
+.plans__header-date { text-align: left; }
+.plans__row { display: grid; grid-template-columns: 1fr 110px 110px auto auto auto; align-items: center; gap: 6px; padding: 4px 8px; }
 .plans__row:hover { background: var(--bg-elev-2); }
 .plans__row--active { background: rgba(88, 166, 255, 0.18); }
 .plans__row--active .plans__name { color: var(--accent); font-weight: 600; }
-.plans__name { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.plans__rename { flex: 1; }
+.plans__name { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.plans__rename { min-width: 0; }
 .plans__rename input { width: 100%; background: var(--bg-elev-2); color: var(--fg); border: 1px solid var(--accent); border-radius: 4px; padding: 2px 6px; font: inherit; }
 .plans__meta { font-size: 10px; color: var(--fg-mute); }
+.plans__rename-btn { color: var(--fg-mute); padding: 0 6px; font-size: 12px; line-height: 1; }
+.plans__rename-btn:hover { color: var(--accent); }
 .plans__dup { color: var(--fg-mute); padding: 0 6px; font-size: 14px; line-height: 1; }
 .plans__dup:hover { color: var(--accent); }
+.plans__delete-confirm { display: inline-flex; gap: 4px; align-items: center; }
+.plans__delete--confirm { background: var(--danger, #c0392b); color: #fff; border-radius: 3px; padding: 2px 8px; font-size: 11px; font-weight: 600; line-height: 1.2; }
+.plans__delete--confirm:hover { filter: brightness(1.1); color: #fff; }
+.plans__delete-cancel { color: var(--fg-dim); padding: 2px 6px; font-size: 11px; }
+.plans__delete-cancel:hover { color: var(--fg); }
 .plans__dup-row { padding: 4px 8px 6px 24px; background: var(--bg-elev-2); border-bottom: 1px solid var(--border); }
 .plans__dup-form { display: flex; gap: 4px; align-items: center; width: 100%; }
 .plans__dup-label { font-size: 11px; color: var(--fg-dim); }

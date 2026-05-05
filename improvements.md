@@ -125,9 +125,7 @@ Below will be per section improvements I want to complete:
 
 > Feature Add
 
-- Add export Structures to export the list of structures in: Text (Names), Pyfa Fitting,
-
-# Planned Pages
+- Add export Structures to export the list of structures in: Text (Names), Pyfa Fitting
 
 ## Moon Scans
 
@@ -135,6 +133,18 @@ Below will be per section improvements I want to complete:
 
 - Add system to allow the storage of moon scan data
 
+> QOL
+> Feature Add
+
+# Planned Pages
+
+> QOL
+
+> Feature Add
+
+## Template
+
+> Necessary
 > QOL
 > Feature Add
 
@@ -180,13 +190,3 @@ Below will be per section improvements I want to complete:
     - All upgrades for Plan
     - Stations
     - Moon Scan Data
-
-> QOL
-
-> Feature Add
-
-## Template
-
-> Necessary
-> QOL
-> Feature Add

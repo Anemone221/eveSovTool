@@ -1,6 +1,7 @@
 # Plans
 
 ## Purpose
+
 The user's work-product. A "plan" scopes any combination of regions, constellations, and systems and stores all the upgrade assignments and per-system workforce statuses for that scope. Multiple plans coexist; one is active at a time. Plans can be duplicated to fork a "what if" without disturbing the baseline.
 
 ## Schema
@@ -37,6 +38,10 @@ The active plan id is persisted in `preferences` under key `plan.active.v1`.
 
 - **Universe plans**, not region- or constellation-scoped — one plan can span any mix.
 - Duplicate auto-suggests `<name> (copy)` and increments to `(copy 2)` etc. Rename and duplicate use inline forms with autofocus + Esc-to-cancel; no `window.prompt()`.
+- Rename is reachable two ways: double-click the plan name, or click the explicit ✎ button on the row. Both routes share the same `renamingId` state.
+- The plan list shows two date columns (Created / Modified) under a header row aligned via CSS grid (`grid-template-columns: 1fr 110px 110px auto auto auto`).
+- Plan delete uses an inline two-step confirmation (× → Delete + Cancel) rather than a native `confirm()` dialog. Starting a rename or duplicate clears any pending delete confirm so only one row-level action is "armed" at a time.
+- The Electron window title mirrors the active plan: `${plan.name} — eveSov`, or just `eveSov` when no plan is active. DockShell sets `document.title` in a `useEffect` keyed on `activePlanId` and on `plan-changed` events; no main-process IPC is involved (Electron auto-syncs from `document.title`).
 - `plans.delete` cascades scopes/assignments/statuses via `ON DELETE CASCADE`.
 - **`hasRemainingSpace`**: the `+` capacity indicator fires when the system has remaining **power AND workforce**. Ice and gas are produced inputs, not slots to fill — irrelevant to this check.
 - **Row highlight rule**: in the Inspector, `inspector__row--over` and the dot indicator fire only when over on Power or Workforce. Per-cell red text still applies to all four resources.
@@ -49,6 +54,4 @@ The active plan id is persisted in `preferences` under key `plan.active.v1`.
 
 ## Open questions / next steps
 
-- DNA export / import — plan sharing between users (see Exports.md).
 - Plan diff view (compare two plans side-by-side).
-- Workforce transit-chain modelling — `transfer_amount` is the schema foundation; multi-hop logic is not yet designed.

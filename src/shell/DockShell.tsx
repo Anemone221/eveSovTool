@@ -66,6 +66,7 @@ export function DockShell() {
   const persistTimer = useRef<number | null>(null);
   const hydrateActivePlan = useUi((s) => s.hydrateActivePlan);
   const registerFocusPanel = useUi((s) => s.registerFocusPanel);
+  const activePlanId = useUi((s) => s.activePlanId);
 
   const hydrateOpsec = useOpsec((s) => s.hydrate);
 
@@ -73,6 +74,30 @@ export function DockShell() {
     void hydrateActivePlan();
     void hydrateOpsec();
   }, [hydrateActivePlan, hydrateOpsec]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const sync = async () => {
+      if (activePlanId == null) {
+        document.title = 'Sov Fitting Tool (SFT)';
+        return;
+      }
+      const list = await evesov.plans.list();
+      if (cancelled) return;
+      const plan = list.find((p) => p.id === activePlanId);
+      document.title = plan
+        ? `${plan.name} — Sov Fitting Tool (SFT)`
+        : 'Sov Fitting Tool (SFT)';
+    };
+    void sync();
+    const off = evesov.events.on('plan-changed', () => {
+      void sync();
+    });
+    return () => {
+      cancelled = true;
+      off();
+    };
+  }, [activePlanId]);
 
   const addOrFocus = useCallback((panelId: string) => {
     const api = apiRef.current;
