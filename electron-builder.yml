@@ -38,4 +38,28 @@ nsis:
     createStartMenuShortcut: true
     shortcutName: Sov Fitting Tool
 
+mac:
+    target:
+        - target: dmg
+          arch: [x64, arm64]
+        - target: zip
+          arch: [x64, arm64]
+    icon: app.icns
+    category: public.app-category.productivity
+
+dmg:
+    title: Sov Fitting Tool
+    window:
+        width: 540
+        height: 380
+
+linux:
+    target:
+        - target: AppImage
+          arch: [x64]
+        - target: deb
+          arch: [x64]
+    icon: app.png
+    category: Utility
+
 publish: null
