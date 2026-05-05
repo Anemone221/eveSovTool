@@ -5,7 +5,7 @@ on:
         branches: [main]
 
 jobs:
-    build:
+    build-windows:
         runs-on: windows-latest
         steps:
             - name: Checkout
@@ -26,23 +26,116 @@ jobs:
             - name: Build and package
               run: npm run package
 
+            - name: Upload artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: dist-windows
+                  path: |
+                      dist/*.exe
+                      dist/*.zip
+                  if-no-files-found: error
+
+    build-macos:
+        runs-on: macos-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm i
+
+            - name: Generate Seed Database
+              run: npm run seed
+
+            - name: Build and package
+              run: npm run package:mac:unsigned
+
+            - name: Upload artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: dist-macos
+                  path: |
+                      dist/*.dmg
+                      dist/*.zip
+                  if-no-files-found: error
+
+    build-linux:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm i
+
+            - name: Generate Seed Database
+              run: npm run seed
+
+            - name: Build and package
+              run: npm run package:linux:unsigned
+
+            - name: Upload artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: dist-linux
+                  path: |
+                      dist/*.AppImage
+                      dist/*.deb
+                  if-no-files-found: error
+
+    release:
+        needs: [build-windows, build-macos, build-linux]
+        runs-on: ubuntu-latest
+        steps:
             - name: Get current time
               uses: josStorer/get-current-time@v2
               id: current-time
               with:
-                format: YYYYMMDD-HHmm
-                utcOffset: "+00:00"
+                  format: YYYYMMDD-HHmm
+                  utcOffset: "+00:00"
+
+            - name: Download Windows artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  name: dist-windows
+                  path: dist
+
+            - name: Download macOS artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  name: dist-macos
+                  path: dist
+
+            - name: Download Linux artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  name: dist-linux
+                  path: dist
 
             - name: Release
               uses: softprops/action-gh-release@v2
               with:
-                draft: false
-                prerelease: true
-                name: ${{ steps.current-time.outputs.formattedTime }}-BETA
-                tag_name: ${{ steps.current-time.outputs.formattedTime }}-BETA
-                files: |
-                  dist/*.exe
-                  dist/*.zip
+                  draft: false
+                  prerelease: true
+                  name: ${{ steps.current-time.outputs.formattedTime }}-BETA
+                  tag_name: ${{ steps.current-time.outputs.formattedTime }}-BETA
+                  files: |
+                      dist/*.exe
+                      dist/*.dmg
+                      dist/*.AppImage
+                      dist/*.deb
+                      dist/*.zip
               env:
-                GITHUB_TOKEN: ${{ github.token }}
-
+                  GITHUB_TOKEN: ${{ github.token }}
