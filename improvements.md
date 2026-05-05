@@ -92,8 +92,8 @@ Below will be per section improvements I want to complete:
 > Necessary
 
 - Add tree system for categories of upgrade
-- Add time required for ugprade for strategic upgrades.
-- Add what type of upgrade it is (Strat, Military, Industry)
+- Add time required for upgrade for strategic upgrades.
+- Add what type of upgrade it is (Strategic upgrades, Military, Industry)
 
 > QOL
 

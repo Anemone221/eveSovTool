@@ -31,13 +31,15 @@ Data
 
 ## Critical files
 
-- `src/panels/SettingsPage.tsx` — tabbed shell. Sub-components: `GeneralSection`, `PreferencesSection`, `DataSection`.
-- `src/styles.css` — `.settings`, `.settings__tabs`, `.settings__tab`, `.settings__tab--active`, `.settings__panel`, `.settings__row`, `.settings__group` blocks.
-- `src/App.tsx` (or `src/shell/DockShell.tsx`) — hydrates `settings.theme` + `settings.color.*` on startup; reads `settings.defaultPanels` after layout restore and ensures listed panels are open.
-- `src/shell/DockShell.tsx` — registers `settingsPage` component and `settings` panel definition.
-- `src/shell/ActivityBar.tsx` — adds Settings item (gear glyph) as the only data/config entrypoint; no separate Data Management item.
+- `src/panels/SettingsPage.tsx` — tabbed shell with `GeneralSection` (theme picker + per-token color overrides + market-sync master toggle + reset-defaults) and `PreferencesSection` (default-panels picker). Data section is still a placeholder.
+- `src/state/theme.ts` — `THEMES`, `COLOR_TOKENS`, `hydrateTheme`, `applyTheme`, `setTheme`, color-override helpers.
+- `src/shell/defaultPanels.ts` — `DEFAULT_PANELS_KEY` and `parseDefaultPanels` (validates against `ACTIVITY_PANELS`).
+- `src/shell/ActivityBar.tsx` — exports `ACTIVITY_PANELS` and `ACTIVITY_LABELS`; adds Settings item (gear glyph) as the only data/config entrypoint; no separate Data Management item.
+- `src/shell/DockShell.tsx` — registers `settingsPage` component and `settings` panel definition; reads `settings.defaultPanels` after layout restore and opens any listed panels not already present.
+- `src/styles.css` — per-theme `:root[data-theme="…"]` token blocks (`abyss` / `caldari` / `high-contrast`); `.settings`, `.settings__tabs`, `.settings__tab`, `.settings__panel`, `.settings__row`, `.settings__group`, `.settings__panel-list` blocks.
+- `src/App.tsx` — hydrates theme + color overrides on mount via `hydrateTheme`.
 - `electron/ipc/prefs.ts` — adds `prefs.deletePrefix`.
-- `electron/ipc/data.ts`, `electron/ipc/plans.ts` — new purge handlers; full Data-tab IPC surface.
+- `electron/ipc/data.ts`, `electron/ipc/plans.ts` — new purge handlers; full Data-tab IPC surface (pending).
 - `electron/preload.ts`, `src/types/index.ts` — expose and type new channels.
 
 ## Key decisions
@@ -51,17 +53,18 @@ Data
 
 ## Open questions / next steps
 
-- [ ] Implement General tab — theme picker + custom colors, master market-sync toggle, "Reset program defaults" (needs `prefs.deletePrefix` IPC).
-- [ ] Implement Preferences tab — multi-select default open panels (`settings.defaultPanels`), wired into DockShell startup after layout restore.
+- [x] Add `prefs.deletePrefix` IPC and wire to Reset Defaults.
+- [x] Implement General tab — theme picker + custom colors (Accent / Success / Danger), master market-sync toggle, "Reset program defaults".
+- [x] Implement Preferences tab — multi-select default open panels (`settings.defaultPanels`), wired into DockShell startup after layout restore.
 - [ ] Implement Data tab — Sync subsection: per-source toggles (Market, Sov), interval radio (`startup` / `60m` / `5h` / `1d`), per-source "Last sync" display ("Never" until Data Sync ships).
 - [ ] Implement Data tab — Upgrades editor table with inline edits, per-row reset (requires `upgrades_seed` shadow table; see Data-Management.md).
 - [ ] Implement Data tab — System resource overrides (system search → editable star power, per-planet power/workforce).
 - [ ] Implement Data tab — CSV re-import UI over `data.refreshSov` with inline import report.
 - [ ] Implement Data tab — Purge group: Market Data (gated on `data.hasMarketData()`), All Plans, All Plan Upgrades, Stations, Moon Scan Data.
-- [ ] Add `prefs.deletePrefix` IPC and wire to Reset Defaults.
 - [ ] Add `data.purgeStations`, `data.purgeMoonScans`, `plans.purgeAll`, `plans.purgeAllUpgrades` IPC handlers.
 - [ ] Update [Data-Management.md](Data-Management.md) with a header note that it lives inside the Settings → Data tab.
 - [ ] Update [INDEX.md](INDEX.md) row for Settings to mention default panels, sync, and data management; update Data-Management row to "schema/IPC for the Settings → Data tab".
+- [ ] Expand custom-color tokens beyond Accent / Success / Danger (e.g. background and foreground tokens).
 - [ ] Future: export / import theme as a JSON preset for sharing.
 - [ ] Future: per-panel color overrides (e.g. different accent in Matrix vs Inspector).
 - [ ] Future: SDE refresh flow once a re-importable SDE pipeline exists.

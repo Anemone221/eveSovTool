@@ -19,6 +19,7 @@ import { ExportsPage } from '@/panels/ExportsPage';
 import { MoonScansPage } from '@/panels/MoonScansPage';
 import { SettingsPage } from '@/panels/SettingsPage';
 import { ActivityBar } from './ActivityBar';
+import { DEFAULT_PANELS_KEY, parseDefaultPanels } from './defaultPanels';
 import { evesov } from '@/api/evesov';
 import { useUi } from '@/state/uiStore';
 import { useOpsec } from '@/state/opsecStore';
@@ -161,6 +162,21 @@ export function DockShell() {
       });
       const sys = event.api.getPanel('system');
       sys?.api.setActive();
+    }
+
+    const defaultPanelsRaw = await evesov.prefs.get(DEFAULT_PANELS_KEY);
+    const defaultPanelIds = parseDefaultPanels(defaultPanelsRaw);
+    for (const panelId of defaultPanelIds) {
+      const def = PANELS[panelId];
+      if (!def) continue;
+      if (!event.api.getPanel(def.id)) {
+        event.api.addPanel({
+          id: def.id,
+          component: def.componentId,
+          title: def.title,
+          position: def.position
+        });
+      }
     }
 
     const savedActive = await evesov.prefs.get(ACTIVE_KEY);

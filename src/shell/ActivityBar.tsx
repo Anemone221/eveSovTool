@@ -44,3 +44,6 @@ export function ActivityBar({ active, onActivate }: ActivityBarProps) {
 }
 
 export const ACTIVITY_PANELS = ITEMS.map((i) => i.id);
+export const ACTIVITY_LABELS: Record<string, string> = Object.fromEntries(
+  ITEMS.map((i) => [i.id, i.label])
+);

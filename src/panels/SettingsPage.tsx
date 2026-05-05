@@ -11,6 +11,8 @@ import {
   clearColorOverride,
   getColorOverride
 } from '@/state/theme';
+import { ACTIVITY_PANELS, ACTIVITY_LABELS } from '@/shell/ActivityBar';
+import { DEFAULT_PANELS_KEY, parseDefaultPanels } from '@/shell/defaultPanels';
 
 type TabId = 'general' | 'preferences' | 'data';
 
@@ -41,7 +43,7 @@ export function SettingsPage() {
       </nav>
       <div className="settings__panel" role="tabpanel">
         {tab === 'general' && <GeneralSection />}
-        {tab === 'preferences' && <PreferencesPlaceholder />}
+        {tab === 'preferences' && <PreferencesSection />}
         {tab === 'data' && <DataPlaceholder />}
       </div>
     </div>
@@ -217,8 +219,71 @@ function normalizeToHex(value: string): string {
   return '#000000';
 }
 
-function PreferencesPlaceholder() {
-  return <div className="settings__hint">Default open panels — coming next.</div>;
+function PreferencesSection() {
+  const [selected, setSelected] = useState<string[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const raw = await evesov.prefs.get(DEFAULT_PANELS_KEY);
+      if (cancelled) return;
+      setSelected(parseDefaultPanels(raw));
+      setLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggle = async (id: string) => {
+    const next = selected.includes(id)
+      ? selected.filter((x) => x !== id)
+      : [...selected, id];
+    setSelected(next);
+    await evesov.prefs.set(DEFAULT_PANELS_KEY, JSON.stringify(next));
+  };
+
+  const clear = async () => {
+    setSelected([]);
+    await evesov.prefs.set(DEFAULT_PANELS_KEY, JSON.stringify([]));
+  };
+
+  return (
+    <section className="settings__group">
+      <h3 className="settings__group-title">Default open panels</h3>
+      <div className="settings__hint" style={{ marginBottom: 12 }}>
+        Selected panels are opened automatically on startup, in addition to the
+        restored dock layout. Leave all unchecked to use the saved layout only.
+      </div>
+      {loaded && (
+        <>
+          <div className="settings__panel-list">
+            {ACTIVITY_PANELS.map((id) => {
+              const on = selected.includes(id);
+              return (
+                <label key={id} className="settings__panel-list-item">
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() => void toggle(id)}
+                  />
+                  <span>{ACTIVITY_LABELS[id] ?? id}</span>
+                </label>
+              );
+            })}
+          </div>
+          {selected.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <button type="button" className="settings__color-reset" onClick={() => void clear()}>
+                Clear all
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
 }
 
 function DataPlaceholder() {
