@@ -11,7 +11,7 @@ const EFFECT_TEXT: Record<string, { label: string; description: string }> = {
     label: 'Gamma',
     description: '+15% Shield HP, +10% Capacitor capacity',
   },
-  'Plasma Stability Geneartor': {
+  'Plasma Stability Generator': {
     label: 'Plasma',
     description: '+15% Armor HP, +10% bonus to overheat benefits',
   },

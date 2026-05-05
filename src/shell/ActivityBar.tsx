@@ -16,6 +16,7 @@ const ITEMS: ActivityItem[] = [
   { id: 'regionMap', label: 'Map', glyph: '⊙' },
   { id: 'moonScans', label: 'Moon Scans', glyph: '◎' },
   { id: 'exports', label: 'Exports', glyph: '⤓' },
+  { id: 'audit', label: 'Audit', glyph: '⚠' },
   { id: 'settings', label: 'Settings', glyph: '⚙' }
 ];
 

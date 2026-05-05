@@ -370,6 +370,7 @@ export interface EveSovApi {
             systemId: number,
         ) => Promise<SystemBalance | null>;
         summary: (planId: number) => Promise<PlanRollup>;
+        audit: (planId: number) => Promise<PlanAuditResult>;
         matrix: (planId: number) => Promise<PlanMatrix>;
         setWorkforceTransfer: (
             planId: number,
@@ -551,6 +552,27 @@ export interface PlanMatrixSystem {
 
 export interface PlanMatrix {
     systems: PlanMatrixSystem[];
+}
+
+export type AuditFindingKind =
+    | 'no-ishtar-sites-low-mining'
+    | 'over-power'
+    | 'over-workforce'
+    | 'fits-ore-prospecting'
+    | 'fits-major-threat';
+
+export interface AuditFinding {
+    kind: AuditFindingKind;
+    systemId: number;
+    systemName: string;
+    constellationName: string;
+    regionName: string;
+    detail: string;
+}
+
+export interface PlanAuditResult {
+    planId: number;
+    findings: AuditFinding[];
 }
 
 declare global {

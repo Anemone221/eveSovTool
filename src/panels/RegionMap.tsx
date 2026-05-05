@@ -140,6 +140,14 @@ export function RegionMap() {
   // restore it exactly when re-enabling the legend after it was hidden.
   const fullViewBoxRef = useRef<string | null>(null);
 
+  // Active base viewBox after legend crop — what applyPanZoom zooms/pans against.
+  const baseViewBoxRef = useRef<string | null>(null);
+
+  // Pan/zoom state: offset and scale relative to the base viewBox.
+  const panZoomRef = useRef<{ x: number; y: number; scale: number }>({ x: 0, y: 0, scale: 1 });
+  const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
+  const cleanupPanZoomRef = useRef<(() => void) | null>(null);
+
   const svgContainerRef = useRef<HTMLDivElement>(null);
 
   // Load tree once
@@ -242,6 +250,7 @@ export function RegionMap() {
           const expanded = `${x - SVG_MARGIN} ${y - SVG_MARGIN} ${w + SVG_MARGIN * 2} ${h + SVG_MARGIN * 2}`;
           svgEl.setAttribute('viewBox', expanded);
           fullViewBoxRef.current = expanded;
+          baseViewBoxRef.current = expanded;
         }
       }
 
@@ -274,32 +283,142 @@ export function RegionMap() {
       const legendG = svgEl.querySelector<SVGGElement>('#legend');
       if (!legendG) return;
 
+      // Reset pan/zoom so we apply it against the correct base after legend change.
+      panZoomRef.current = { x: 0, y: 0, scale: 1 };
+
       if (showLegend) {
         legendG.removeAttribute('display');
         if (fullViewBoxRef.current) {
           svgEl.setAttribute('viewBox', fullViewBoxRef.current);
+          baseViewBoxRef.current = fullViewBoxRef.current;
         }
       } else {
         legendG.setAttribute('display', 'none');
         // Crop the viewBox to remove the dead legend strip.
-        // The legend <rect> x tells us where the legend column starts.
+        // Use fullViewBoxRef as the base so we don't read a pan/zoom-shifted viewBox.
         const legendRect = legendG.querySelector('rect');
-        if (legendRect) {
+        if (legendRect && fullViewBoxRef.current) {
           const legendX = parseFloat(legendRect.getAttribute('x') ?? '0');
-          const vb = svgEl.getAttribute('viewBox');
-          if (vb) {
-            const [vbX, vbY, , vbH] = vb.split(' ').map(Number);
-            // Original map width = legendX − LEGEND_MARGIN − vbX.
-            // SVG_MARGIN was subtracted from vbX, so legendX is still correct
-            // relative to the original content — no adjustment needed.
-            const origW = legendX - LEGEND_MARGIN - vbX;
-            svgEl.setAttribute('viewBox', `${vbX} ${vbY} ${origW} ${vbH}`);
-          }
+          const [vbX, vbY, , vbH] = fullViewBoxRef.current.split(' ').map(Number);
+          // Original map width = legendX − LEGEND_MARGIN − vbX.
+          // SVG_MARGIN was subtracted from vbX, so legendX is still correct
+          // relative to the original content — no adjustment needed.
+          const origW = legendX - LEGEND_MARGIN - vbX;
+          const cropped = `${vbX} ${vbY} ${origW} ${vbH}`;
+          svgEl.setAttribute('viewBox', cropped);
+          baseViewBoxRef.current = cropped;
         }
       }
     });
     return () => cancelAnimationFrame(frame);
   }, [svgContent, showLegend]);
+
+  // Reset pan/zoom when the region changes.
+  useEffect(() => {
+    panZoomRef.current = { x: 0, y: 0, scale: 1 };
+  }, [selectedRegionId]);
+
+  // Pan/zoom via wheel (zoom) and pointer drag. Mutates the SVG viewBox directly.
+  // Runs after svgContent is injected so the <svg> element exists in the DOM.
+  useEffect(() => {
+    if (!svgContent) return;
+    const container = svgContainerRef.current;
+    if (!container) return;
+    // Wait one frame so dangerouslySetInnerHTML has flushed into the DOM.
+    const setupFrame = requestAnimationFrame(() => {
+      const svgEl = container.querySelector('svg');
+      if (!svgEl) return;
+
+      function applyPanZoom() {
+        const base = baseViewBoxRef.current;
+        if (!base) return;
+        const [bx, by, bw, bh] = base.split(' ').map(Number);
+        const { x, y, scale } = panZoomRef.current;
+        const nw = bw / scale;
+        const nh = bh / scale;
+        svgEl!.setAttribute('viewBox', `${bx + x} ${by + y} ${nw} ${nh}`);
+      }
+
+      function onWheel(e: WheelEvent) {
+        e.preventDefault();
+        const base = baseViewBoxRef.current;
+        if (!base) return;
+        const [bx, by, bw, bh] = base.split(' ').map(Number);
+        const pz = panZoomRef.current;
+        const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+        const newScale = Math.min(20, Math.max(0.2, pz.scale * factor));
+
+        // Zoom toward the cursor position in SVG-coordinate space.
+        const rect = svgEl!.getBoundingClientRect();
+        const px = (e.clientX - rect.left) / rect.width;
+        const py = (e.clientY - rect.top) / rect.height;
+        const curVbW = bw / pz.scale;
+        const curVbH = bh / pz.scale;
+        const curVbX = bx + pz.x;
+        const curVbY = by + pz.y;
+        const svgX = curVbX + px * curVbW;
+        const svgY = curVbY + py * curVbH;
+        const newVbW = bw / newScale;
+        const newVbH = bh / newScale;
+        panZoomRef.current = {
+          x: svgX - px * newVbW - bx,
+          y: svgY - py * newVbH - by,
+          scale: newScale,
+        };
+        applyPanZoom();
+      }
+
+      function onPointerDown(e: PointerEvent) {
+        if (e.button !== 0) return;
+        dragRef.current = {
+          startX: e.clientX,
+          startY: e.clientY,
+          originX: panZoomRef.current.x,
+          originY: panZoomRef.current.y,
+        };
+      }
+
+      function onPointerMove(e: PointerEvent) {
+        const drag = dragRef.current;
+        if (!drag) return;
+        const base = baseViewBoxRef.current;
+        if (!base) return;
+        const [, , bw, bh] = base.split(' ').map(Number);
+        const rect = svgEl!.getBoundingClientRect();
+        const scale = panZoomRef.current.scale;
+        const dx = ((e.clientX - drag.startX) / rect.width) * (bw / scale);
+        const dy = ((e.clientY - drag.startY) / rect.height) * (bh / scale);
+        // Only capture the pointer once we've confirmed movement, so clicks still fire.
+        if (!svgEl!.hasPointerCapture(e.pointerId)) {
+          svgEl!.setPointerCapture(e.pointerId);
+        }
+        panZoomRef.current = { ...panZoomRef.current, x: drag.originX - dx, y: drag.originY - dy };
+        applyPanZoom();
+      }
+
+      function onPointerUp() {
+        dragRef.current = null;
+      }
+
+      svgEl.addEventListener('wheel', onWheel, { passive: false });
+      svgEl.addEventListener('pointerdown', onPointerDown);
+      svgEl.addEventListener('pointermove', onPointerMove);
+      svgEl.addEventListener('pointerup', onPointerUp);
+      svgEl.addEventListener('pointercancel', onPointerUp);
+      cleanupPanZoomRef.current = () => {
+        svgEl.removeEventListener('wheel', onWheel);
+        svgEl.removeEventListener('pointerdown', onPointerDown);
+        svgEl.removeEventListener('pointermove', onPointerMove);
+        svgEl.removeEventListener('pointerup', onPointerUp);
+        svgEl.removeEventListener('pointercancel', onPointerUp);
+      };
+    });
+    return () => {
+      cancelAnimationFrame(setupFrame);
+      cleanupPanZoomRef.current?.();
+      cleanupPanZoomRef.current = null;
+    };
+  }, [svgContent]);
 
   // Inject overlay <g> directly into the dotlan SVG so coordinates share the same space.
   // Depends on positions (state) so it re-runs once positions are parsed, and also when

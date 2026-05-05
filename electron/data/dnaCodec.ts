@@ -87,8 +87,7 @@ const NAME_TO_SLOT: Record<string, { slot: SlotName; value: number }> = {
   'Electric Stability Generator': { slot: 'stability', value: 1 },
   'Exotic Stability Generator': { slot: 'stability', value: 2 },
   'Gamma Stability Generator': { slot: 'stability', value: 3 },
-  // The CSV ships "Plasma Stability Geneartor" (sic). Round-trip the typo verbatim.
-  'Plasma Stability Geneartor': { slot: 'stability', value: 4 },
+  'Plasma Stability Generator': { slot: 'stability', value: 4 },
   'Advanced Logistics Network': { slot: 'aln', value: 1 },
   'Cynosural Navigation': { slot: 'cyno-nav', value: 1 },
   'Cynosural Suppression': { slot: 'cyno-sup', value: 1 },

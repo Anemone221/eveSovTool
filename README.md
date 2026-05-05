@@ -3,8 +3,9 @@
 A local desktop tool for planning EVE Online sovereignty (sov) upgrades.
 
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL_3.0-blue.svg)](LICENSE)
-![Status: Alpha](https://img.shields.io/badge/Status-Alpha-orange.svg)
+![Status: Beta](https://img.shields.io/badge/Status-Beta-blue.svg)
 ![Platform: Windows (Electron)](https://img.shields.io/badge/Platform-Windows-lightgrey.svg)
+[![Build / Beta](https://github.com/unkwntech/eveSovTool/actions/workflows/build_beta.yml/badge.svg)](https://github.com/unkwntech/eveSovTool/actions/workflows/build_beta.yml)
 
 ---
 
@@ -22,19 +23,29 @@ A local desktop tool for planning EVE Online sovereignty (sov) upgrades.
 - **Universe plans** — named, multiple-coexisting plans that can scope any mix of regions, constellations, and individual systems. Plans can be duplicated as `(copy)`/`(copy 2)` so you can branch a "what if" without losing your baseline.
 - **Per-system budget validation** — assign upgrades and watch the four resource bars (Power / Workforce / Superionic Ice/h / Magmatic Gas/h) fill up; tooling shows you how much capacity is left and what would push a system over budget. Producer upgrades (negative costs) actually grow your available pool. One-time startup-fuel cost is tracked separately.
 - **Plan Inspector** groups your scope by constellation (region in parens), with per-system balance rows and inline mini-meters showing constellation-level totals.
-- **Assignment Matrix** — one-glance plan-wide grid: every system × every upgrade, with rotated headers and totals row.
+- **Assignment Matrix** — one-glance plan-wide grid: every system × every upgrade, with rotated headers and totals row. Supports PNG export with op-sec redaction.
 - **Sites Overview** rolls up the anomalies your plan would generate (Threat Detection arrays, Prospecting Arrays — including the bonus Mercoxit anomaly on tier-3 prospectors) per system, with plan-wide totals.
 - **Workforce status** per (plan, system): mark systems as Local / Export / Import / Transit ready for the workforce-routing logic.
 - **Resource & site granting** is sec-bracket aware, matching CCP's published threat-detection tables.
+- **Region Map** — Dotlan SVG base map overlaid with upgrade icons, structure icons, ALN bridge lines, and exploration aura; supports PNG export.
+- **Structures** — track Ansiblex, Metenox, Athanor, Tatara, Sotiyo, and other structures per plan and system. Supports manual add, EVE clipboard import, and auto-generated Ansiblex cards when an ALN upgrade is assigned.
+- **Moon Scans** — paste EVE moon survey clipboard data; per-moon ore composition is stored and feeds Metenox/Athanor/Tatara profitability calculations in Structures.
+- **Plan DNA** — compact share strings (`ESOV2B` binary or `ESOV2T` text) for exporting and importing plans between installations. Also accepts legacy `ESOV1` imports.
+- **Op-sec capture mode** — configurable redaction layer (hide system names, workforce counts, gas/ice values, supercap indicators) applied only during PNG export; live UI is unaffected.
+- **Export log** — per-plan history of all PNG and DNA exports, with filename and timestamp.
+- **Settings** — color palettes and theme configuration.
 
 ## Status
 
-This project is in **alpha** and currently only runs from source on Windows; there are no released binaries yet. The data layer, plans, panels, and core validation are working end-to-end. What's still on the roadmap:
+This project is in **beta**. Pre-built Windows installers and portable ZIPs are published automatically as GitHub Actions artifacts on every push to `main` (beta build) and on tagged releases. The data layer, plans, all core panels, exports, structures, and moon scans are working end-to-end.
 
+What's still on the roadmap:
+
+- Market data ingestion and structure profitability calculations.
 - Workforce route validation (export ↔ import pairs and the transit chain between them).
 - Real OS-window tear-out for popping panels into separate native windows.
 - Per-CSV in-app refresh dialog and "Generate templates" export.
-- Cross-entity search, keyboard shortcuts, drone-region site overrides, polish.
+- Cross-entity search, keyboard shortcuts, drone-region site overrides.
 
 See [`we-are-building-a-sharded-lemur.md`](we-are-building-a-sharded-lemur.md) for the full rolling implementation plan.
 
@@ -73,10 +84,14 @@ The seed step runs through Electron itself (`electron electron/seed-entry.cjs`) 
 ## Build
 
 ```bash
-npm run build
+npm run build     # production bundle into out/
+npm run package   # build + package into a .exe installer and portable .zip under dist/
 ```
 
-Produces the production bundle under `out/`. (Electron-builder packaging into a `.exe` installer is set up but no signed releases are published yet.)
+GitHub Actions builds and publishes artifacts automatically:
+
+- **Beta** (`build_beta.yml`) — runs on every push to `main`; produces `eve-sov-tool-win-installer` and `eve-sov-tool-win-portable` artifacts.
+- **Release** (`build_release.yml`) — runs on pushes to the `release` tag; produces the same artifacts for stable releases.
 
 ## Scripts
 
