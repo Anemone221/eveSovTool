@@ -1,7 +1,33 @@
 import { useCallback, useEffect, useState } from 'react';
 import { evesov } from '@/api/evesov';
 import { useUi } from '@/state/uiStore';
-import type { PlanSummary } from '@shared/index';
+import { siteEffectsFor } from '@/data/effects';
+import type { PlanRollup, PlanRollupRow, PlanSummary } from '@shared/index';
+
+interface DiffRow {
+  systemId: number;
+  systemName: string;
+  constellationName: string;
+  regionName: string;
+  added: string[];
+  removed: string[];
+  kind: 'only-a' | 'only-b' | 'changed';
+}
+
+interface CompareSummary {
+  consumedIce: number;
+  consumedGas: number;
+  totalSites: number;
+  siteBreakdown: Map<string, number>;
+}
+
+interface CompareResult {
+  planAName: string;
+  planBName: string;
+  summaryA: CompareSummary;
+  summaryB: CompareSummary;
+  rows: DiffRow[];
+}
 
 export function PlansPanel() {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
@@ -10,14 +36,22 @@ export function PlansPanel() {
   const [renameValue, setRenameValue] = useState('');
   const [duplicatingId, setDuplicatingId] = useState<number | null>(null);
   const [duplicateValue, setDuplicateValue] = useState('');
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; planId: number } | null>(null);
+  const [comparingFromId, setComparingFromId] = useState<number | null>(null);
+  const [compareResult, setCompareResult] = useState<CompareResult | null>(null);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
   const activePlanId = useUi((s) => s.activePlanId);
   const setActivePlan = useUi((s) => s.setActivePlan);
+  const setActivePlanReadOnly = useUi((s) => s.setActivePlanReadOnly);
 
   const refresh = useCallback(async () => {
     const list = await evesov.plans.list();
     setPlans(list);
-  }, []);
+    const active = list.find((p) => p.id === activePlanId);
+    setActivePlanReadOnly(active?.readOnly ?? false);
+  }, [activePlanId, setActivePlanReadOnly]);
 
   useEffect(() => {
     void refresh();
@@ -26,6 +60,25 @@ export function PlansPanel() {
     });
     return off;
   }, [refresh]);
+
+  useEffect(() => {
+    const active = plans.find((p) => p.id === activePlanId);
+    setActivePlanReadOnly(active?.readOnly ?? false);
+  }, [activePlanId, plans, setActivePlanReadOnly]);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const dismiss = () => setContextMenu(null);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setContextMenu(null); };
+    window.addEventListener('mousedown', dismiss);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('blur', dismiss);
+    return () => {
+      window.removeEventListener('mousedown', dismiss);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('blur', dismiss);
+    };
+  }, [contextMenu]);
 
   const create = async () => {
     const name = newName.trim();
@@ -83,6 +136,57 @@ export function PlansPanel() {
     setDuplicateValue('');
   };
 
+  const runComparison = useCallback(async (idA: number, idB: number) => {
+    setCompareLoading(true);
+    setComparingFromId(null);
+    const [rollupA, rollupB] = await Promise.all([
+      evesov.plans.summary(idA),
+      evesov.plans.summary(idB),
+    ]);
+    const planAName = plans.find((p) => p.id === idA)?.name ?? `Plan ${idA}`;
+    const planBName = plans.find((p) => p.id === idB)?.name ?? `Plan ${idB}`;
+    setCompareResult(buildDiff(rollupA, rollupB, planAName, planBName));
+    setCompareLoading(false);
+  }, [plans]);
+
+  const copyComparison = useCallback(() => {
+    if (!compareResult) return;
+    const { planAName, planBName, summaryA, summaryB } = compareResult;
+    const fmt = (n: number) => n.toLocaleString();
+    const delta = (a: number, b: number) => {
+      const d = b - a;
+      return d === 0 ? '=' : d > 0 ? `+${fmt(d)}` : fmt(d);
+    };
+    const lines: string[] = [
+      `# Plan Comparison: ${planAName} vs ${planBName}`,
+      '',
+      `| | ${planAName} | ${planBName} | Δ |`,
+      `|---|---|---|---|`,
+      `| Superionic Ice | ${fmt(summaryA.consumedIce)}/hr | ${fmt(summaryB.consumedIce)}/hr | ${delta(summaryA.consumedIce, summaryB.consumedIce)} |`,
+      `| Magmatic Gas | ${fmt(summaryA.consumedGas)}/hr | ${fmt(summaryB.consumedGas)}/hr | ${delta(summaryA.consumedGas, summaryB.consumedGas)} |`,
+      `| Total Sites | ${fmt(summaryA.totalSites)} | ${fmt(summaryB.totalSites)} | ${delta(summaryA.totalSites, summaryB.totalSites)} |`,
+    ];
+    const allSites = [...new Set([...summaryA.siteBreakdown.keys(), ...summaryB.siteBreakdown.keys()])].sort();
+    const changedSites = allSites.filter((s) => (summaryA.siteBreakdown.get(s) ?? 0) !== (summaryB.siteBreakdown.get(s) ?? 0));
+    if (changedSites.length > 0) {
+      for (const site of changedSites) {
+        const a = summaryA.siteBreakdown.get(site) ?? 0;
+        const b = summaryB.siteBreakdown.get(site) ?? 0;
+        lines.push(`| ${site} | ${fmt(a)} | ${fmt(b)} | ${delta(a, b)} |`);
+      }
+    }
+    lines.push('');
+    for (const r of compareResult.rows) {
+      lines.push(`## ${r.systemName} (${r.constellationName})`);
+      for (const u of r.added) lines.push(`+ ${u}`);
+      for (const u of r.removed) lines.push(`- ${u}`);
+      lines.push('');
+    }
+    void navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      setCopyFeedback(true);
+      setTimeout(() => setCopyFeedback(false), 1500);
+    });
+  }, [compareResult]);
   const startDelete = (id: number) => {
     setRenamingId(null);
     setDuplicatingId(null);
@@ -111,6 +215,32 @@ export function PlansPanel() {
         <button type="submit" disabled={!newName.trim()}>+ Plan</button>
       </form>
       <ul className="plans__list">
+        {comparingFromId !== null && (
+          <li className="plans__picker">
+            <span className="plans__picker-label">
+              Compare &ldquo;{plans.find((p) => p.id === comparingFromId)?.name}&rdquo; to:
+            </span>
+            <select
+              className="plans__picker-select"
+              defaultValue=""
+              onChange={(e) => {
+                const targetId = Number(e.target.value);
+                if (targetId) void runComparison(comparingFromId, targetId);
+              }}
+            >
+              <option value="" disabled>— pick a plan —</option>
+              {plans
+                .filter((p) => p.id !== comparingFromId)
+                .map((p) => <option key={p.id} value={p.id}>{p.name}</option>)
+              }
+            </select>
+            <button
+              type="button"
+              className="plans__picker-cancel"
+              onClick={() => { setComparingFromId(null); setCompareResult(null); }}
+            >
+              ✕
+            </button>
         {plans.length > 0 && (
           <li className="plans__header" aria-hidden="true">
             <span className="plans__header-name">Name</span>
@@ -125,6 +255,11 @@ export function PlansPanel() {
             <li
               key={p.id}
               className={`plans__row${activePlanId === p.id ? ' plans__row--active' : ''}`}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setContextMenu({ x: e.clientX, y: e.clientY, planId: p.id });
+              }}
             >
               {renamingId === p.id ? (
                 <form
@@ -150,12 +285,21 @@ export function PlansPanel() {
                   type="button"
                   className="plans__name"
                   onClick={() => setActivePlan(p.id)}
+                  onDoubleClick={() => {
+                    if (p.readOnly) return;
+                    setRenameValue(p.name);
+                    setRenamingId(p.id);
+                  }}
                   onDoubleClick={() => startRename(p)}
                   title="Click to activate, double-click to rename"
                 >
                   {p.name}
                 </button>
               )}
+              {p.readOnly && (
+                <span className="plans__lock" title="Read-only — right-click to unlock">🔒</span>
+              )}
+              <span className="plans__meta">{formatDate(p.updatedAt)}</span>
               <span className="plans__meta plans__meta--created" title="Created">{formatDate(p.createdAt)}</span>
               <span className="plans__meta plans__meta--updated" title="Modified">{formatDate(p.updatedAt)}</span>
               <button
@@ -237,6 +381,179 @@ export function PlansPanel() {
         })}
         {plans.length === 0 && <li className="plans__empty">No plans yet. Create one above.</li>}
       </ul>
+      {(compareResult || compareLoading) && (
+        <div className="plans__compare">
+          <div className="plans__compare-header">
+            <span className="plans__compare-title">
+              {compareResult
+                ? `${compareResult.planAName} vs ${compareResult.planBName}`
+                : 'Loading comparison…'}
+            </span>
+            {compareResult && (
+              <button
+                type="button"
+                className="plans__compare-copy"
+                title="Copy as markdown"
+                onClick={copyComparison}
+              >
+                {copyFeedback ? 'Copied!' : 'Copy'}
+              </button>
+            )}
+            <button
+              type="button"
+              className="plans__compare-close"
+              onClick={() => { setCompareResult(null); setComparingFromId(null); setCompareLoading(false); }}
+            >
+              ✕
+            </button>
+          </div>
+          {compareLoading && <div className="plans__compare-loading">Loading…</div>}
+          {compareResult && (
+            <>
+              <table className="plans__compare-summary">
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>{compareResult.planAName}</th>
+                    <th>{compareResult.planBName}</th>
+                    <th>Δ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {([
+                    ['Superionic Ice', compareResult.summaryA.consumedIce, compareResult.summaryB.consumedIce, '/hr'],
+                    ['Magmatic Gas',   compareResult.summaryA.consumedGas,  compareResult.summaryB.consumedGas,  '/hr'],
+                    ['Total Sites',    compareResult.summaryA.totalSites,   compareResult.summaryB.totalSites,   ''],
+                  ] as [string, number, number, string][]).map(([label, a, b, unit]) => {
+                    const d = b - a;
+                    return (
+                      <tr key={label}>
+                        <td className="plans__compare-summary-label">{label}</td>
+                        <td className="plans__compare-summary-val">{a.toLocaleString()}{unit}</td>
+                        <td className="plans__compare-summary-val">{b.toLocaleString()}{unit}</td>
+                        <td className={`plans__compare-summary-delta${d > 0 ? ' plans__compare-summary-delta--up' : d < 0 ? ' plans__compare-summary-delta--down' : ''}`}>
+                          {d === 0 ? '=' : d > 0 ? `+${d.toLocaleString()}` : d.toLocaleString()}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {(() => {
+                    const { siteBreakdown: bkA } = compareResult.summaryA;
+                    const { siteBreakdown: bkB } = compareResult.summaryB;
+                    const allSites = [...new Set([...bkA.keys(), ...bkB.keys()])].sort();
+                    const changed = allSites.filter((s) => (bkA.get(s) ?? 0) !== (bkB.get(s) ?? 0));
+                    if (changed.length === 0) return null;
+                    return (
+                      <tr key="site-breakdown">
+                        <td className="plans__compare-summary-label plans__compare-summary-label--sub">by type</td>
+                        <td colSpan={3} className="plans__compare-site-breakdown">
+                          {changed.map((site) => {
+                            const d = (bkB.get(site) ?? 0) - (bkA.get(site) ?? 0);
+                            return (
+                              <span
+                                key={site}
+                                className={`plans__compare-site-delta${d > 0 ? ' plans__compare-site-delta--up' : ' plans__compare-site-delta--down'}`}
+                                title={`${site}: ${(bkA.get(site) ?? 0).toLocaleString()} → ${(bkB.get(site) ?? 0).toLocaleString()}`}
+                              >
+                                {d > 0 ? `+${d}` : d}× {site}
+                              </span>
+                            );
+                          })}
+                        </td>
+                      </tr>
+                    );
+                  })()}
+                </tbody>
+              </table>
+              <table className="plans__compare-table">
+                <thead>
+                  <tr>
+                    <th>System</th>
+                    <th>Constellation</th>
+                    <th>Added</th>
+                    <th>Removed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {compareResult.rows.map((r) => (
+                    <tr
+                      key={r.systemId}
+                      className={`plans__compare-row plans__compare-row--${r.kind}`}
+                    >
+                      <td>{r.systemName}</td>
+                      <td className="plans__compare-constellation">{r.constellationName}</td>
+                      <td className="plans__compare-added">
+                        {r.added.length
+                          ? r.added.join(', ')
+                          : <em className="plans__compare-absent">—</em>}
+                      </td>
+                      <td className="plans__compare-removed">
+                        {r.removed.length
+                          ? r.removed.join(', ')
+                          : <em className="plans__compare-absent">—</em>}
+                      </td>
+                    </tr>
+                  ))}
+                  {compareResult.rows.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="plans__compare-empty">
+                        Plans are identical.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </>
+          )}
+        </div>
+      )}
+      {contextMenu && (
+        <div
+          className="context-menu"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {(() => {
+            const p = plans.find((x) => x.id === contextMenu.planId);
+            return (
+              <>
+                <button
+                  type="button"
+                  className="context-menu__item"
+                  disabled={p?.readOnly}
+                  onClick={() => {
+                    if (p) { setRenameValue(p.name); setRenamingId(p.id); }
+                    setContextMenu(null);
+                  }}
+                >
+                  Rename
+                </button>
+                <button
+                  type="button"
+                  className="context-menu__item"
+                  onClick={() => {
+                    if (p) void evesov.plans.setReadOnly(p.id, !p.readOnly).then(refresh);
+                    setContextMenu(null);
+                  }}
+                >
+                  {p?.readOnly ? 'Mark read/write' : 'Mark read-only'}
+                </button>
+                <button
+                  type="button"
+                  className="context-menu__item"
+                  onClick={() => {
+                    setComparingFromId(contextMenu.planId);
+                    setCompareResult(null);
+                    setContextMenu(null);
+                  }}
+                >
+                  Compare to…
+                </button>
+              </>
+            );
+          })()}
+        </div>
+      )}
     </div>
   );
 }
@@ -255,4 +572,83 @@ function uniqueCopyName(base: string, existing: string[]): string {
   let i = 2;
   while (taken.has((candidate = `${stripped} (copy ${i})`))) i++;
   return candidate;
+}
+
+const DIFF_ORDER: Record<DiffRow['kind'], number> = { 'only-a': 0, 'only-b': 1, 'changed': 2 };
+
+function siteSummaryForRollup(rollup: PlanRollup): { total: number; breakdown: Map<string, number> } {
+  let total = 0;
+  const breakdown = new Map<string, number>();
+  for (const row of rollup.systemBalances) {
+    for (const upgradeName of row.upgrades) {
+      for (const g of siteEffectsFor(upgradeName, row.securityStatus)) {
+        total += g.count;
+        breakdown.set(g.site, (breakdown.get(g.site) ?? 0) + g.count);
+      }
+    }
+  }
+  return { total, breakdown };
+}
+
+function buildDiff(
+  rollupA: PlanRollup,
+  rollupB: PlanRollup,
+  planAName: string,
+  planBName: string,
+): CompareResult {
+  const mapA = new Map<number, PlanRollupRow>();
+  const mapB = new Map<number, PlanRollupRow>();
+  for (const r of rollupA.systemBalances) mapA.set(r.systemId, r);
+  for (const r of rollupB.systemBalances) mapB.set(r.systemId, r);
+
+  const sitesA = siteSummaryForRollup(rollupA);
+  const sitesB = siteSummaryForRollup(rollupB);
+  const summaryA: CompareSummary = {
+    consumedIce: rollupA.totals.consumedIce,
+    consumedGas: rollupA.totals.consumedGas,
+    totalSites: sitesA.total,
+    siteBreakdown: sitesA.breakdown,
+  };
+  const summaryB: CompareSummary = {
+    consumedIce: rollupB.totals.consumedIce,
+    consumedGas: rollupB.totals.consumedGas,
+    totalSites: sitesB.total,
+    siteBreakdown: sitesB.breakdown,
+  };
+
+  const allIds = new Set([...mapA.keys(), ...mapB.keys()]);
+  const rows: DiffRow[] = [];
+
+  for (const id of allIds) {
+    const a = mapA.get(id);
+    const b = mapB.get(id);
+    const setA = new Set(a?.upgrades ?? []);
+    const setB = new Set(b?.upgrades ?? []);
+
+    // upgrades present in B but not A = added; present in A but not B = removed
+    const added = [...setB].filter((u) => !setA.has(u)).sort();
+    const removed = [...setA].filter((u) => !setB.has(u)).sort();
+
+    // skip systems where nothing changed
+    if (added.length === 0 && removed.length === 0) continue;
+
+    const ref = (a ?? b)!;
+    const kind: DiffRow['kind'] = !a ? 'only-b' : !b ? 'only-a' : 'changed';
+    rows.push({
+      systemId: id,
+      systemName: ref.systemName,
+      constellationName: ref.constellationName,
+      regionName: ref.regionName,
+      added,
+      removed,
+      kind,
+    });
+  }
+
+  rows.sort((a, b) =>
+    DIFF_ORDER[a.kind] - DIFF_ORDER[b.kind] ||
+    a.systemName.localeCompare(b.systemName),
+  );
+
+  return { planAName, planBName, summaryA, summaryB, rows };
 }

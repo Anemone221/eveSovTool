@@ -55,14 +55,16 @@ export function oreRTier(oreType: string): 4 | 8 | 16 | 32 | 64 | null {
 // Multiple moon blocks may appear in sequence.
 function parseMoonSurvey(text: string): {
   systemName: string;
+  planetName: string;
   moonNumber: number;
   oreType: string;
   orePercent: number;
 }[] {
   const lines = text.split(/\r?\n/);
-  const results: { systemName: string; moonNumber: number; oreType: string; orePercent: number }[] = [];
+  const results: { systemName: string; planetName: string; moonNumber: number; oreType: string; orePercent: number }[] = [];
 
   let currentSystemName: string | null = null;
+  let currentPlanetName: string | null = null;
   let currentMoonNumber: number | null = null;
 
   for (const line of lines) {
@@ -72,18 +74,20 @@ function parseMoonSurvey(text: string): {
 
     if (line.startsWith('\t')) {
       // Ore row: \tOreType\tQuantity\t...
-      if (currentSystemName === null || currentMoonNumber === null) continue;
+      if (currentSystemName === null || currentMoonNumber === null || currentPlanetName === null) continue;
       const cols = line.split('\t');
       // cols[0] is the empty string before the leading tab
       const oreType = cols[1]?.trim();
       const orePercent = parseFloat(cols[2] ?? '');
       if (!oreType || Number.isNaN(orePercent)) continue;
-      results.push({ systemName: currentSystemName, moonNumber: currentMoonNumber, oreType, orePercent });
+      results.push({ systemName: currentSystemName, planetName: currentPlanetName, moonNumber: currentMoonNumber, oreType, orePercent });
     } else {
       // Moon label row: "7-K5EL II - Moon 1"
+      // moonMatch[1] is the planet label e.g. "7-K5EL II"; system name is derived by stripping the trailing word
       const moonMatch = line.trim().match(/^(.+?)\s*-\s*Moon\s+(\d+)$/i);
       if (!moonMatch) continue;
-      currentSystemName = moonMatch[1].trim();
+      currentPlanetName = moonMatch[1].trim();
+      currentSystemName = currentPlanetName;
       currentMoonNumber = parseInt(moonMatch[2], 10);
     }
   }
@@ -130,10 +134,11 @@ export function registerMoonScansIpc(): void {
     const now = new Date().toISOString();
 
     const upsert = db.prepare(`
-      INSERT INTO moon_scans (session_id, system_id, moon_number, ore_type, ore_percent)
-      VALUES (@sessionId, @systemId, @moonNumber, @oreType, @orePercent)
+      INSERT INTO moon_scans (session_id, system_id, moon_number, planet_name, ore_type, ore_percent)
+      VALUES (@sessionId, @systemId, @moonNumber, @planetName, @oreType, @orePercent)
       ON CONFLICT(system_id, moon_number, ore_type) DO UPDATE SET
         session_id  = excluded.session_id,
+        planet_name = excluded.planet_name,
         ore_percent = excluded.ore_percent
     `);
 
@@ -153,6 +158,7 @@ export function registerMoonScansIpc(): void {
           sessionId,
           systemId: row.systemId,
           moonNumber: row.moonNumber,
+          planetName: row.planetName,
           oreType: row.oreType,
           orePercent: row.orePercent,
         });
@@ -176,27 +182,25 @@ export function registerMoonScansIpc(): void {
       system_id: number;
       system_name: string;
       moon_number: number;
+      planet_name: string | null;
+      planet_type: string | null;
       ore_type: string;
       ore_percent: number;
       scan_date: string | null;
     };
 
+    const baseSelect = `
+      SELECT ms.id, ms.session_id, ms.system_id, s.name AS system_name,
+             ms.moon_number, ms.planet_name,
+             p.planet_type,
+             ms.ore_type, ms.ore_percent, ms.scan_date
+      FROM moon_scans ms
+      JOIN systems s ON s.id = ms.system_id
+      LEFT JOIN planets p ON p.system_id = ms.system_id AND p.name = ms.planet_name`;
+
     const rows = systemId !== undefined
-      ? db.prepare(`
-          SELECT ms.id, ms.session_id, ms.system_id, s.name AS system_name,
-                 ms.moon_number, ms.ore_type, ms.ore_percent, ms.scan_date
-          FROM moon_scans ms
-          JOIN systems s ON s.id = ms.system_id
-          WHERE ms.system_id = ?
-          ORDER BY ms.moon_number
-        `).all(systemId) as Row[]
-      : db.prepare(`
-          SELECT ms.id, ms.session_id, ms.system_id, s.name AS system_name,
-                 ms.moon_number, ms.ore_type, ms.ore_percent, ms.scan_date
-          FROM moon_scans ms
-          JOIN systems s ON s.id = ms.system_id
-          ORDER BY s.name, ms.moon_number
-        `).all() as Row[];
+      ? db.prepare(`${baseSelect} WHERE ms.system_id = ? ORDER BY ms.moon_number`).all(systemId) as Row[]
+      : db.prepare(`${baseSelect} ORDER BY s.name, ms.moon_number`).all() as Row[];
 
     return rows.map((r) => ({
       id: r.id,
@@ -204,6 +208,8 @@ export function registerMoonScansIpc(): void {
       systemId: r.system_id,
       systemName: r.system_name,
       moonNumber: r.moon_number,
+      planetName: r.planet_name,
+      planetType: r.planet_type,
       oreType: r.ore_type,
       orePercent: r.ore_percent,
       scanDate: r.scan_date,

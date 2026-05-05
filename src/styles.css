@@ -420,7 +420,52 @@ table.grid td.cost-produces { color: var(--ok); }
 .plans__dup-form button[type="button"] { color: var(--fg-dim); padding: 2px 6px; font-size: 11px; }
 .plans__delete { color: var(--fg-mute); padding: 0 6px; font-size: 16px; line-height: 1; }
 .plans__delete:hover { color: var(--danger); }
+.plans__lock { font-size: 11px; margin-left: 4px; opacity: 0.7; cursor: default; }
 .plans__empty { padding: 12px; color: var(--fg-mute); list-style: none; }
+
+.plans__picker { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: var(--bg-elev-2); border-bottom: 1px solid var(--border); list-style: none; }
+.plans__picker-label { font-size: 11px; color: var(--fg-dim); flex-shrink: 0; }
+.plans__picker-select { flex: 1; background: var(--bg-elev-2); color: var(--fg); border: 1px solid var(--border); border-radius: 3px; padding: 2px 4px; font: inherit; font-size: 11px; }
+.plans__picker-select:focus { outline: none; border-color: var(--accent); }
+.plans__picker-cancel { color: var(--fg-mute); padding: 0 4px; font-size: 13px; flex-shrink: 0; }
+.plans__picker-cancel:hover { color: var(--fg); }
+
+.plans__compare { flex: 0 0 auto; max-height: 40vh; overflow-y: auto; border-top: 2px solid var(--accent); background: var(--bg-elev); }
+.plans__compare-header { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--bg-elev-2); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; }
+.plans__compare-title { font-size: 11px; font-weight: 600; flex: 1; color: var(--fg-dim); }
+.plans__compare-toggle { font-size: 11px; color: var(--fg-dim); display: flex; align-items: center; gap: 4px; cursor: pointer; flex-shrink: 0; }
+.plans__compare-toggle input { margin: 0; accent-color: var(--accent); }
+.plans__compare-copy { font-size: 11px; color: var(--accent); padding: 1px 6px; border: 1px solid var(--accent); border-radius: 3px; flex-shrink: 0; }
+.plans__compare-copy:hover { background: rgba(88,166,255,0.12); }
+.plans__compare-close { color: var(--fg-mute); padding: 0 4px; font-size: 14px; flex-shrink: 0; }
+.plans__compare-close:hover { color: var(--fg); }
+.plans__compare-loading { padding: 8px 12px; font-size: 11px; color: var(--fg-mute); }
+.plans__compare-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.plans__compare-table th { padding: 4px 8px; text-align: left; color: var(--fg-mute); font-weight: 400; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
+.plans__compare-table td { padding: 3px 8px; vertical-align: top; border-bottom: 1px solid rgba(48,54,61,0.5); }
+.plans__compare-row--only-a td:first-child { color: var(--accent); }
+.plans__compare-row--only-b td:first-child { color: var(--ok); }
+.plans__compare-row--changed td:first-child { color: #f0b429; }
+.plans__compare-row--same { opacity: 0.55; }
+.plans__compare-constellation { color: var(--fg-mute); font-size: 10px; }
+.plans__compare-added { color: var(--ok); max-width: 160px; word-break: break-word; }
+.plans__compare-removed { color: var(--danger); max-width: 160px; word-break: break-word; }
+.plans__compare-absent { color: var(--fg-mute); font-style: normal; }
+.plans__compare-empty { padding: 8px 12px; color: var(--fg-mute); text-align: center; }
+.plans__compare-summary { width: 100%; border-collapse: collapse; font-size: 11px; border-bottom: 1px solid var(--border); }
+.plans__compare-summary th { padding: 4px 8px; text-align: right; color: var(--fg-mute); font-weight: 400; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+.plans__compare-summary th:first-child { text-align: left; }
+.plans__compare-summary td { padding: 3px 8px; text-align: right; }
+.plans__compare-summary-label { text-align: left !important; color: var(--fg-dim); }
+.plans__compare-summary-val { font-variant-numeric: tabular-nums; }
+.plans__compare-summary-delta { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--fg-mute); }
+.plans__compare-summary-delta--up { color: var(--ok); }
+.plans__compare-summary-delta--down { color: var(--danger); }
+.plans__compare-summary-label--sub { font-size: 11px; padding-left: 16px !important; }
+.plans__compare-site-breakdown { display: flex; flex-wrap: wrap; gap: 4px 10px; padding: 4px 8px; }
+.plans__compare-site-delta { font-size: 11px; font-weight: 600; white-space: nowrap; }
+.plans__compare-site-delta--up { color: var(--ok); }
+.plans__compare-site-delta--down { color: var(--danger); }
 
 /* Plan inspector */
 .inspector { padding: 16px 24px; height: 100%; overflow-y: auto; box-sizing: border-box; }
@@ -631,6 +676,8 @@ table.grid td.cost-produces { color: var(--ok); }
   font: inherit;
 }
 .context-menu__item:hover { background: var(--bg-elev-3, rgba(255,255,255,0.06)); }
+.context-menu__item--danger { color: var(--danger); }
+.context-menu__item--danger:hover { background: rgba(248, 81, 73, 0.1); }
 
 .effect-badge__icon {
   width: 18px;
@@ -1253,6 +1300,58 @@ body[data-opsec-supercaps="1"] [data-supercap="1"] { color: transparent !importa
 .detail__pi-tier--p3 { background: #4a3f2c; border-color: #70583e; }
 .detail__pi-tier--p4 { background: #4a2c46; border-color: #703e68; }
 
+.detail__moon-tier {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 11px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    background: var(--bg-elev-2);
+    color: var(--fg);
+    border: 1px solid var(--border);
+}
+.detail__moon-tier--r4  { background: #3a3a2c; border-color: #5a5a3e; }
+.detail__moon-tier--r8  { background: #2c3a3a; border-color: #3e5a5a; }
+.detail__moon-tier--r16 { background: #3a2c3a; border-color: #5a3e5a; }
+.detail__moon-tier--r32 { background: #3a2c2c; border-color: #6a4040; }
+.detail__moon-tier--r64 { background: #4a3010; border-color: #8a5820; color: #ffcc66; }
+
+.detail__moons { display: flex; flex-direction: column; gap: 12px; }
+.detail__moon { display: flex; flex-direction: column; gap: 4px; }
+.detail__moon-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    color: inherit;
+}
+.detail__moon-num { font-weight: 600; font-size: 12px; color: var(--fg); flex: 1; }
+.detail__moon-planet-type { color: var(--fg-mute); }
+.detail__moon-best { font-size: 11px; font-weight: 700; }
+.detail__moon-tier-summary { font-size: 11px; font-weight: 700; margin-left: 6px; }
+.detail__moon-ore {
+    display: grid;
+    grid-template-columns: 32px 1fr 80px 40px;
+    align-items: center;
+    gap: 6px;
+    padding: 1px 0 1px 8px;
+}
+.detail__moon-tier-pill { font-size: 10px; font-weight: 700; text-align: right; }
+.detail__moon-ore-name { font-size: 11px; color: var(--fg-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.detail__moon-ore-bar-wrap { height: 6px; background: var(--bg-elev-2); border-radius: 3px; overflow: hidden; }
+.detail__moon-ore-bar { height: 100%; border-radius: 3px; opacity: 0.75; }
+.detail__moon-ore-pct { font-size: 11px; color: var(--fg-dim); text-align: right; }
+
 .detail__pi-products { display: flex; flex-direction: column; gap: 8px; }
 .detail__pi-row { display: flex; align-items: flex-start; gap: 12px; }
 .detail__pi-row-label {
@@ -1307,6 +1406,7 @@ body[data-opsec-supercaps="1"] [data-supercap="1"] { color: transparent !importa
 .moon-scans__import-result { font-size: 12px; color: var(--ok); }
 .moon-scans__sessions { padding: 8px 12px; border-bottom: 1px solid var(--border); }
 .moon-scans__section-label { font-size: 11px; font-weight: 600; color: var(--fg-mute); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+.moon-scans__section-label--toggle { display: flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; padding: 0; width: 100%; text-align: left; }
 .moon-scans__session-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; }
 .moon-scans__session-date { color: var(--fg-dim); flex: 1; }
 .moon-scans__session-count { color: var(--fg-mute); }

@@ -12,6 +12,7 @@ import { useUi } from "@/state/uiStore";
 import type {
     AlnLink,
     AlnTarget,
+    MoonScan,
     PlanStructure,
     PlanUpgradeRow,
     StructureAddPayload,
@@ -24,6 +25,72 @@ import type {
     WorkforceTransfer,
 } from "@shared/index";
 import { useCallback, useEffect, useMemo, useState } from "react";
+
+const ORE_TIERS: [string, 4 | 8 | 16 | 32 | 64][] = [
+    ['Zeolites', 4], ['Bitumens', 4], ['Sylvite', 4], ['Coesite', 4],
+    ['Scheelite', 8], ['Titanite', 8], ['Cobaltite', 8], ['Euxenite', 8],
+    ['Sperrylite', 16], ['Chromite', 16], ['Otavite', 16], ['Vanadinite', 16],
+    ['Carnotite', 32], ['Zircon', 32], ['Pollucite', 32], ['Cinnabar', 32],
+    ['Monazite', 64], ['Loparite', 64], ['Xenotime', 64], ['Ytterbite', 64],
+];
+
+const MOON_TIER_COLORS: Record<number, string> = {
+    4: '#8b949e', 8: '#3fb950', 16: '#58a6ff', 32: '#d29922', 64: '#f85149',
+};
+
+function oreTier(oreType: string): 4 | 8 | 16 | 32 | 64 | null {
+    const lower = oreType.toLowerCase();
+    for (const [name, tier] of ORE_TIERS) {
+        if (lower.includes(name.toLowerCase())) return tier;
+    }
+    return null;
+}
+
+const ROMAN: Record<string, number> = {
+    I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000,
+};
+
+function parseRoman(s: string): number {
+    let result = 0;
+    for (let i = 0; i < s.length; i++) {
+        const cur = ROMAN[s[i]] ?? 0;
+        const next = ROMAN[s[i + 1]] ?? 0;
+        result += cur < next ? -cur : cur;
+    }
+    return result;
+}
+
+function planetOrdinal(planetName: string | null): number {
+    if (!planetName) return Infinity;
+    const suffix = planetName.split(' ').at(-1) ?? '';
+    const n = parseRoman(suffix.toUpperCase());
+    return n > 0 ? n : Infinity;
+}
+
+function groupMoonsByNumber(scans: MoonScan[]): { moonNumber: number; ores: MoonScan[] }[] {
+    const map = new Map<number, MoonScan[]>();
+    for (const scan of scans) {
+        if (!map.has(scan.moonNumber)) map.set(scan.moonNumber, []);
+        map.get(scan.moonNumber)!.push(scan);
+    }
+    return [...map.values()]
+        .sort((a, b) => {
+            const pa = planetOrdinal(a[0]?.planetName ?? null);
+            const pb = planetOrdinal(b[0]?.planetName ?? null);
+            if (pa !== pb) return pa - pb;
+            return (a[0]?.moonNumber ?? 0) - (b[0]?.moonNumber ?? 0);
+        })
+        .map((ores) => ({ moonNumber: ores[0]!.moonNumber, ores }));
+}
+
+function computeHighestMoonTier(oreTypes: string[]): 4 | 8 | 16 | 32 | 64 | null {
+    let best: 4 | 8 | 16 | 32 | 64 | null = null;
+    for (const ore of oreTypes) {
+        const t = oreTier(ore);
+        if (t !== null && (best === null || t > best)) best = t;
+    }
+    return best;
+}
 
 const STRUCTURE_TYPES: StructureType[] = [
     "Keepstar",
@@ -61,6 +128,7 @@ type ResourceMode = "consumed" | "remaining";
 export function SystemDetail() {
     const systemId = useUi((s) => s.selectedSystemId);
     const activePlanId = useUi((s) => s.activePlanId);
+    const planReadOnly = useUi((s) => s.activePlanReadOnly);
     const [detail, setDetail] = useState<SystemDetailDto | null>(null);
     const [allUpgrades, setAllUpgrades] = useState<Upgrade[]>([]);
     const [assigned, setAssigned] = useState<PlanUpgradeRow[]>([]);
@@ -91,6 +159,7 @@ export function SystemDetail() {
         { systemId: number; systemName: string }[]
     >([]);
     const [structuresOpen, setStructuresOpen] = useState(true);
+    const [moonsOpen, setMoonsOpen] = useState(false);
     const [piOpen, setPiOpen] = useState(true);
     const [structures, setStructures] = useState<PlanStructure[]>([]);
     const [structAddType, setStructAddType] =
@@ -105,6 +174,9 @@ export function SystemDetail() {
     const [structImportResult, setStructImportResult] = useState<string | null>(
         null,
     );
+    const [highestMoonTier, setHighestMoonTier] = useState<4 | 8 | 16 | 32 | 64 | null>(null);
+    const [moonScans, setMoonScans] = useState<MoonScan[]>([]);
+    const [collapsedMoons, setCollapsedMoons] = useState<Set<number>>(new Set());
 
     useEffect(() => {
         void evesov.prefs.get("detail.section.star").then((v) => {
@@ -115,6 +187,9 @@ export function SystemDetail() {
         });
         void evesov.prefs.get("detail.section.structures").then((v) => {
             if (v !== null) setStructuresOpen(v !== "0");
+        });
+        void evesov.prefs.get("detail.section.moons").then((v) => {
+            if (v !== null) setMoonsOpen(v !== "0");
         });
         void evesov.prefs.get("detail.section.pi").then((v) => {
             if (v !== null) setPiOpen(v !== "0");
@@ -145,6 +220,13 @@ export function SystemDetail() {
             return next;
         });
     };
+    const toggleMoons = () => {
+        setMoonsOpen((prev) => {
+            const next = !prev;
+            void evesov.prefs.set("detail.section.moons", next ? "1" : "0");
+            return next;
+        });
+    };
     const togglePi = () => {
         setPiOpen((prev) => {
             const next = !prev;
@@ -171,6 +253,14 @@ export function SystemDetail() {
         setBalance(b);
         setTransfers(allTransfers);
         setStructures(structNodes[0]?.structures ?? []);
+
+        const existingTransfer = allTransfers.find((t) => t.sourceSystemId === sid);
+        if (existingTransfer) {
+            setExportDest(existingTransfer.destSystemId);
+            setExportAllUnused(existingTransfer.exportAllUnused);
+            setExportAmount(existingTransfer.exportAllUnused ? "" : String(existingTransfer.transferAmount));
+        }
+
         if (b?.status === "export") {
             const reachable = await evesov.plans.getReachableImportSystems(
                 pid,
@@ -203,13 +293,21 @@ export function SystemDetail() {
             setDetail(null);
             setAssigned([]);
             setBalance(null);
+            setMoonScans([]);
+            setHighestMoonTier(null);
             return;
         }
         setLoading(true);
         void (async () => {
-            const d = await evesov.data.system(systemId);
+            const [d, scans] = await Promise.all([
+                evesov.data.system(systemId),
+                evesov.moonScans.list(systemId),
+            ]);
             if (cancelled) return;
             setDetail(d);
+            setMoonScans(scans);
+            setCollapsedMoons(new Set(scans.map((s) => s.moonNumber)));
+            setHighestMoonTier(computeHighestMoonTier(scans.map((s) => s.oreType)));
             if (activePlanId !== null && d) {
                 await fetchPlanState(systemId, activePlanId);
             } else {
@@ -230,6 +328,18 @@ export function SystemDetail() {
         });
         return off;
     }, [systemId, activePlanId, fetchPlanState]);
+
+    useEffect(() => {
+        if (systemId === null) return;
+        const off = evesov.events.on("data-refreshed", () => {
+            void evesov.moonScans.list(systemId).then((scans) => {
+                setMoonScans(scans);
+                setCollapsedMoons(new Set(scans.map((s) => s.moonNumber)));
+                setHighestMoonTier(computeHighestMoonTier(scans.map((s) => s.oreType)));
+            });
+        });
+        return off;
+    }, [systemId]);
 
     useEffect(() => {
         setExportDest("");
@@ -372,6 +482,14 @@ export function SystemDetail() {
                             P{topTier}
                         </span>
                     )}
+                    {highestMoonTier !== null && (
+                        <span
+                            className={`detail__moon-tier detail__moon-tier--r${highestMoonTier}`}
+                            title={`Highest scanned moon ore: R${highestMoonTier}`}
+                        >
+                            R{highestMoonTier}
+                        </span>
+                    )}
                     {activePlanId !== null && budget.sovEligible && (
                         <label
                             className={`status-pill status-pill--${balance?.status ?? "local"}`}
@@ -381,6 +499,7 @@ export function SystemDetail() {
                             <select
                                 className="status-pill__select"
                                 value={balance?.status ?? "local"}
+                                disabled={planReadOnly}
                                 onChange={(e) => {
                                     void evesov.plans.setSystemStatus(
                                         activePlanId,
@@ -491,24 +610,26 @@ export function SystemDetail() {
                                                     {s.location}
                                                 </span>
                                             )}
-                                            <button
-                                                type="button"
-                                                className="structures__card-remove"
-                                                title="Remove structure"
-                                                onClick={() =>
-                                                    void evesov.structures.remove(
-                                                        activePlanId,
-                                                        s.id,
-                                                    )
-                                                }
-                                            >
-                                                ×
-                                            </button>
+                                            {!planReadOnly && (
+                                                <button
+                                                    type="button"
+                                                    className="structures__card-remove"
+                                                    title="Remove structure"
+                                                    onClick={() =>
+                                                        void evesov.structures.remove(
+                                                            activePlanId,
+                                                            s.id,
+                                                        )
+                                                    }
+                                                >
+                                                    ×
+                                                </button>
+                                            )}
                                         </li>
                                     ))}
                                 </ul>
                             )}
-                            {!structAdding && !structImporting && (
+                            {!structAdding && !structImporting && !planReadOnly && (
                                 <div className="structures__actions">
                                     <button
                                         type="button"
@@ -750,6 +871,7 @@ export function SystemDetail() {
                                     type="submit"
                                     className="transfer-form__submit"
                                     disabled={
+                                        planReadOnly ||
                                         exportWorking ||
                                         exportDest === "" ||
                                         (!exportAllUnused &&
@@ -758,7 +880,7 @@ export function SystemDetail() {
                                 >
                                     {exportWorking ? "Saving…" : "Set Transfer"}
                                 </button>
-                                {transfers.some(
+                                {!planReadOnly && transfers.some(
                                     (t) => t.sourceSystemId === systemId,
                                 ) && (
                                     <button
@@ -983,6 +1105,7 @@ export function SystemDetail() {
                                     type="submit"
                                     className="transfer-form__submit"
                                     disabled={
+                                        planReadOnly ||
                                         alnWorking ||
                                         (!alnManual && alnDest === "") ||
                                         (alnManual && !alnManualName.trim())
@@ -990,7 +1113,7 @@ export function SystemDetail() {
                                 >
                                     {alnWorking ? "Saving…" : "Set Link"}
                                 </button>
-                                {alnLink && (
+                                {alnLink && !planReadOnly && (
                                     <button
                                         type="button"
                                         className="transfer-form__remove"
@@ -1136,6 +1259,119 @@ export function SystemDetail() {
                 </div>
             </div>
 
+            {moonScans.length > 0 && (
+                <section
+                    className={`detail__section${moonsOpen ? "" : " detail__section--collapsed"}`}
+                >
+                    <button
+                        type="button"
+                        className="detail__section-toggle"
+                        onClick={toggleMoons}
+                        aria-expanded={moonsOpen}
+                    >
+                        <span className="tree__chevron">
+                            {moonsOpen ? "▾" : "▸"}
+                        </span>
+                        <h3>
+                            Moons ({new Set(moonScans.map((s) => s.moonNumber)).size})
+                        </h3>
+                        {(() => {
+                            const counts = new Map<number, number>();
+                            for (const { ores } of groupMoonsByNumber(moonScans)) {
+                                const best = computeHighestMoonTier(ores.map((o) => o.oreType));
+                                if (best !== null) counts.set(best, (counts.get(best) ?? 0) + 1);
+                            }
+                            return ([64, 32, 16, 8, 4] as const).map((tier) => {
+                                const n = counts.get(tier);
+                                if (!n) return null;
+                                return (
+                                    <span
+                                        key={tier}
+                                        className="detail__moon-tier-summary"
+                                        style={{ color: MOON_TIER_COLORS[tier] }}
+                                        title={`${n} R${tier} moon${n !== 1 ? 's' : ''}`}
+                                    >
+                                        {n}×R{tier}
+                                    </span>
+                                );
+                            });
+                        })()}
+                    </button>
+                    {moonsOpen && (
+                        <div className="detail__moons">
+                            {groupMoonsByNumber(moonScans).map(({ moonNumber, ores }) => {
+                                const moonBest = computeHighestMoonTier(ores.map((o) => o.oreType));
+                                const planetName = ores[0]?.planetName ?? null;
+                                const planetType = ores[0]?.planetType ?? null;
+                                return (
+                                    <div key={moonNumber} className="detail__moon">
+                                        <button
+                                            type="button"
+                                            className="detail__moon-header"
+                                            onClick={() => setCollapsedMoons((prev) => {
+                                                const next = new Set(prev);
+                                                if (next.has(moonNumber)) next.delete(moonNumber);
+                                                else next.add(moonNumber);
+                                                return next;
+                                            })}
+                                        >
+                                            <span className="tree__chevron">
+                                                {collapsedMoons.has(moonNumber) ? "▸" : "▾"}
+                                            </span>
+                                            <span className="detail__moon-num">
+                                                {planetName
+                                                    ? `${planetName} - Moon ${moonNumber}`
+                                                    : `Moon ${moonNumber}`}
+                                                {planetType && (
+                                                    <span className="detail__moon-planet-type">
+                                                        {" "}({planetType})
+                                                    </span>
+                                                )}
+                                            </span>
+                                            {moonBest !== null && (
+                                                <span
+                                                    className="detail__moon-best"
+                                                    style={{ color: MOON_TIER_COLORS[moonBest] }}
+                                                >
+                                                    R{moonBest}
+                                                </span>
+                                            )}
+                                        </button>
+                                        {!collapsedMoons.has(moonNumber) && ores.map((ore) => {
+                                            const tier = oreTier(ore.oreType);
+                                            const color = tier ? MOON_TIER_COLORS[tier] : '#8b949e';
+                                            return (
+                                                <div key={ore.id} className="detail__moon-ore">
+                                                    <span
+                                                        className="detail__moon-tier-pill"
+                                                        style={{ color }}
+                                                    >
+                                                        {tier ? `R${tier}` : '?'}
+                                                    </span>
+                                                    <span className="detail__moon-ore-name">{ore.oreType}</span>
+                                                    <div className="detail__moon-ore-bar-wrap">
+                                                        <div
+                                                            className="detail__moon-ore-bar"
+                                                            style={{
+                                                                width: `${(ore.orePercent * 100).toFixed(1)}%`,
+                                                                background: color,
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <span className="detail__moon-ore-pct">
+                                                        {(ore.orePercent * 100).toFixed(1)}%
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </section>
+            )}
+
             {topTier > 0 && (
                 <section
                     className={`detail__section${piOpen ? "" : " detail__section--collapsed"}`}
@@ -1268,6 +1504,7 @@ export function SystemDetail() {
                                             <input
                                                 type="checkbox"
                                                 checked={a.installed}
+                                                disabled={planReadOnly}
                                                 onChange={(e) => {
                                                     if (activePlanId === null)
                                                         return;
@@ -1346,6 +1583,7 @@ export function SystemDetail() {
                                                     void remove(a.upgradeName)
                                                 }
                                                 disabled={
+                                                    planReadOnly ||
                                                     working === a.upgradeName
                                                 }
                                                 title={`Remove ${a.upgradeName}`}
@@ -1458,10 +1696,13 @@ export function SystemDetail() {
                                                         void assign(u.name)
                                                     }
                                                     disabled={
+                                                        planReadOnly ||
                                                         working === u.name
                                                     }
                                                     title={
-                                                        fits
+                                                        planReadOnly
+                                                            ? "Plan is read-only"
+                                                            : fits
                                                             ? "Assign"
                                                             : "Will exceed available capacity"
                                                     }

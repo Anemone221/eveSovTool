@@ -25,6 +25,7 @@ interface PlanDbRow {
   name: string;
   created_at: string;
   updated_at: string;
+  read_only: number;
 }
 
 interface ScopeDbRow {
@@ -80,8 +81,14 @@ const toPlanSummary = (r: PlanDbRow): PlanSummary => ({
   id: r.id,
   name: r.name,
   createdAt: r.created_at,
-  updatedAt: r.updated_at
+  updatedAt: r.updated_at,
+  readOnly: r.read_only === 1,
 });
+
+function assertWritable(db: ReturnType<typeof import('../db/userDb.js').getDb>, planId: number): void {
+  const row = db.prepare('SELECT read_only FROM plans WHERE id = ?').get(planId) as { read_only: number } | undefined;
+  if (row?.read_only === 1) throw new Error('Plan is read-only');
+}
 
 const toPlanUpgrade = (r: PlanUpgradeDbRow): PlanUpgradeRow => ({
   planId: r.plan_id,
@@ -323,6 +330,7 @@ export function registerPlansIpc(): void {
     'plans.setCapital',
     (_, planId: number, systemId: number, isCapital: boolean): void => {
       const db = getDb();
+      assertWritable(db, planId);
       db.transaction(() => {
         if (isCapital) {
           db.prepare('DELETE FROM plan_capital_systems WHERE plan_id = ?').run(planId);
@@ -344,11 +352,13 @@ export function registerPlansIpc(): void {
   );
 
   ipcMain.handle('plans.create', (_, name: string): PlanSummary => {
+    const db = getDb();
     const now = new Date().toISOString();
-    const result = getDb()
+    const result = db
       .prepare('INSERT INTO plans (name, created_at, updated_at) VALUES (?, ?, ?)')
       .run(name.trim(), now, now);
-    return { id: Number(result.lastInsertRowid), name: name.trim(), createdAt: now, updatedAt: now };
+    const row = db.prepare('SELECT * FROM plans WHERE id = ?').get(Number(result.lastInsertRowid)) as PlanDbRow;
+    return toPlanSummary(row);
   });
 
   ipcMain.handle('plans.rename', (_, id: number, name: string): PlanSummary => {
@@ -357,6 +367,14 @@ export function registerPlansIpc(): void {
       .prepare('UPDATE plans SET name = ?, updated_at = ? WHERE id = ?')
       .run(name.trim(), now, id);
     const row = getDb().prepare('SELECT * FROM plans WHERE id = ?').get(id) as PlanDbRow;
+    return toPlanSummary(row);
+  });
+
+  ipcMain.handle('plans.setReadOnly', (_, id: number, readOnly: boolean): PlanSummary => {
+    const db = getDb();
+    db.prepare('UPDATE plans SET read_only = ?, updated_at = ? WHERE id = ?')
+      .run(readOnly ? 1 : 0, new Date().toISOString(), id);
+    const row = db.prepare('SELECT * FROM plans WHERE id = ?').get(id) as PlanDbRow;
     return toPlanSummary(row);
   });
 
@@ -395,6 +413,7 @@ export function registerPlansIpc(): void {
 
   ipcMain.handle('plans.setScopes', (_, planId: number, scopes: PlanScope[]): void => {
     const db = getDb();
+    assertWritable(db, planId);
     const previous = db
       .prepare('SELECT scope_type, scope_id FROM plan_scopes WHERE plan_id = ?')
       .all(planId) as ScopeDbRow[];
@@ -456,6 +475,7 @@ export function registerPlansIpc(): void {
     'plans.assignUpgrade',
     (_, planId: number, systemId: number, upgradeName: string): AssignResult => {
       const db = getDb();
+      assertWritable(db, planId);
 
       const newKey = upgradeTypeKey(upgradeName);
       if (newKey) {
@@ -502,6 +522,7 @@ export function registerPlansIpc(): void {
     'plans.removeUpgrade',
     (_, planId: number, systemId: number, upgradeName: string): void => {
       const db = getDb();
+      assertWritable(db, planId);
       db.transaction(() => {
         db.prepare(
           'DELETE FROM plan_upgrades WHERE plan_id = ? AND system_id = ? AND upgrade_name = ?'
@@ -526,6 +547,7 @@ export function registerPlansIpc(): void {
       scopeId: number
     ): void => {
       const db = getDb();
+      assertWritable(db, planId);
       let siblings: Array<{ id: number }> = [];
       if (scopeType === 'region') {
         siblings = db
@@ -574,6 +596,7 @@ export function registerPlansIpc(): void {
 
   ipcMain.handle('plans.removeSystem', (_, planId: number, systemId: number): void => {
     const db = getDb();
+    assertWritable(db, planId);
     const sys = db
       .prepare('SELECT constellation_id, region_id FROM systems WHERE id = ?')
       .get(systemId) as { constellation_id: number; region_id: number } | undefined;
@@ -647,6 +670,7 @@ export function registerPlansIpc(): void {
     'plans.setUpgradeInstalled',
     (_, planId: number, systemId: number, upgradeName: string, installed: boolean): void => {
       const db = getDb();
+      assertWritable(db, planId);
       db.transaction(() => {
         db.prepare(
           `UPDATE plan_upgrades SET installed = ?
@@ -662,6 +686,7 @@ export function registerPlansIpc(): void {
     'plans.clearUpgrades',
     (_, planId: number, scope: ClearUpgradesScope): void => {
       const db = getDb();
+      assertWritable(db, planId);
       db.transaction(() => {
         if (scope.kind === 'plan') {
           db.prepare('DELETE FROM plan_upgrades WHERE plan_id = ?').run(planId);
@@ -704,6 +729,7 @@ export function registerPlansIpc(): void {
     'plans.setSystemStatus',
     (_, planId: number, systemId: number, status: SystemStatus): void => {
       const db = getDb();
+      assertWritable(db, planId);
       db.transaction(() => {
         if (status === 'local') {
           db.prepare('DELETE FROM plan_system_status WHERE plan_id = ? AND system_id = ?').run(planId, systemId);
@@ -897,6 +923,7 @@ export function registerPlansIpc(): void {
       exportAllUnused: boolean
     ): SetTransferResult => {
       const db = getDb();
+      assertWritable(db, planId);
 
       const srcRow = db
         .prepare('SELECT status FROM plan_system_status WHERE plan_id = ? AND system_id = ?')
@@ -961,6 +988,7 @@ export function registerPlansIpc(): void {
     'plans.removeWorkforceTransfer',
     (_, planId: number, sourceSystemId: number): void => {
       const db = getDb();
+      assertWritable(db, planId);
       db.transaction(() => {
         db.prepare(
           `UPDATE plan_system_status
@@ -1085,6 +1113,7 @@ export function registerPlansIpc(): void {
     ): { ok: boolean; error?: string } => {
       if (!linkedSystemName.trim()) return { ok: false, error: 'Linked system name is required.' };
       const db = getDb();
+      assertWritable(db, planId);
 
       const sourceName = (db.prepare('SELECT name FROM systems WHERE id = ?').get(systemId) as { name: string } | undefined)?.name ?? String(systemId);
 
@@ -1132,6 +1161,7 @@ export function registerPlansIpc(): void {
 
   ipcMain.handle('plans.removeAlnLink', (_, planId: number, systemId: number): void => {
     const db = getDb();
+    assertWritable(db, planId);
     db.transaction(() => {
       // Remove forward link.
       const fwd = db.prepare('SELECT linked_system_id FROM plan_aln_links WHERE plan_id = ? AND system_id = ?')

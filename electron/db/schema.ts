@@ -72,7 +72,8 @@ CREATE TABLE IF NOT EXISTS plans (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   name        TEXT NOT NULL UNIQUE,
   created_at  TEXT NOT NULL,
-  updated_at  TEXT NOT NULL
+  updated_at  TEXT NOT NULL,
+  read_only   INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS plan_scopes (
@@ -183,6 +184,7 @@ CREATE TABLE IF NOT EXISTS moon_scans (
   session_id  INTEGER REFERENCES moon_scan_sessions(id) ON DELETE CASCADE,
   system_id   INTEGER NOT NULL REFERENCES systems(id),
   moon_number INTEGER NOT NULL,
+  planet_name TEXT,
   ore_type    TEXT NOT NULL,
   ore_percent REAL NOT NULL,
   scan_date   TEXT,
