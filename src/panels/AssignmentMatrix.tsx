@@ -51,8 +51,11 @@ export function AssignmentMatrix() {
             matrix.systems.forEach((s, i) => map.set(s.id, `System-${i + 1}`));
         return map;
     }, [matrix]);
-    const renderSystemName = (id: number, real: string) =>
-        opsec.hideSystemNames ? (systemNameById.get(id) ?? real) : real;
+    const renderSystemName = useCallback(
+        (id: number, real: string) =>
+            opsec.hideSystemNames ? (systemNameById.get(id) ?? real) : real,
+        [opsec.hideSystemNames, systemNameById],
+    );
     const [alnPending, setAlnPending] = useState<{
         systemId: number;
         systemName: string;
@@ -166,6 +169,30 @@ export function AssignmentMatrix() {
         [activePlanId],
     );
 
+    const onCopyMarkdown = useCallback(async () => {
+        if (!matrix || columns.length === 0) return;
+        const header = ['System', ...columns].map((c) => {
+            const label = fmt.upgradeSymbols ? (upgradeSymbols[c] ?? c) : c;
+            return label;
+        });
+        const sep = header.map(() => '---');
+        const rows = matrix.systems.map((s) => {
+            const installedMap = new Map(s.upgrades.map((u) => [u.name, u.installed]));
+            const name = renderSystemName(s.id, s.name);
+            const cells = columns.map((c) => {
+                const has = installedMap.has(c);
+                if (!has) return ' ';
+                const installed = installedMap.get(c) === true;
+                if (!fmt.showInstalled) return '●';
+                return installed ? '●' : '○';
+            });
+            return [name, ...cells];
+        });
+        const toRow = (cells: string[]) => `| ${cells.join(' | ')} |`;
+        const md = [toRow(header), toRow(sep), ...rows.map(toRow)].join('\n');
+        await navigator.clipboard.writeText(md);
+    }, [matrix, columns, fmt.upgradeSymbols, fmt.showInstalled, renderSystemName]);
+
     const onExportPng = useCallback(async () => {
         const el = matrixRef.current;
         if (!el || activePlanId === null) return;
@@ -249,6 +276,13 @@ export function AssignmentMatrix() {
                     onClick={onExportPng}
                 >
                     Export PNG
+                </button>
+                <button
+                    type="button"
+                    className="matrix__export-btn"
+                    onClick={() => void onCopyMarkdown()}
+                >
+                    Copy as Markdown
                 </button>
             </div>
             <div className="matrix__scroll" ref={matrixRef}>
