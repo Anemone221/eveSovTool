@@ -94,6 +94,7 @@ export interface PlanSummary {
     createdAt: string;
     updatedAt: string;
     readOnly: boolean;
+    regions: string[];
 }
 
 export interface PlanScope {

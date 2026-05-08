@@ -352,6 +352,7 @@ export function PlansPanel() {
         {plans.length > 0 && (
           <li className="plans__header" aria-hidden="true">
             <span className="plans__header-name">Name</span>
+            <span className="plans__header-regions">Regions</span>
             <span className="plans__header-date">Created</span>
             <span className="plans__header-date">Modified</span>
             <span className="plans__header-actions" />
@@ -400,6 +401,12 @@ export function PlansPanel() {
                   {p.readOnly && <span className="plans__lock" title="Read-only — right-click to unlock">🔒</span>}
                 </button>
               )}
+              <span
+                className="plans__meta plans__regions"
+                title={p.regions.length ? p.regions.join(', ') : 'No regions in scope'}
+              >
+                {p.regions.length ? p.regions.join(', ') : '—'}
+              </span>
               <span className="plans__meta plans__meta--created" title="Created">{formatDate(p.createdAt)}</span>
               <span className="plans__meta plans__meta--updated" title="Modified">{formatDate(p.updatedAt)}</span>
               <button

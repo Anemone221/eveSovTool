@@ -2,6 +2,7 @@ import html2canvas from 'html2canvas';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { evesov } from '@/api/evesov';
 import { MiniMeter } from '@/components/MiniMeter';
+import { NpcFactionIcon } from '@/components/NpcFactionIcon';
 import { OpsecPill } from '@/components/OpsecPill';
 import { buildExportFilename } from '@/data/exportFilename';
 import { withOpsecCapture } from '@/data/opsecCapture';
@@ -32,6 +33,7 @@ interface ContextMenuState {
 }
 
 const SHOW_LOCAL_TAG_KEY = 'inspector.showLocalTag';
+const SHOW_NPC_FACTION_KEY = 'ui.showNpcFactionIcons';
 
 function isOverPowerOrWorkforce(s: SystemBalance): boolean {
   return s.consumedPower > s.availablePower || s.consumedWorkforce > s.availableWorkforce;
@@ -46,6 +48,7 @@ export function PlanInspector() {
   const [rollup, setRollup] = useState<PlanRollup | null>(null);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [showLocalTag, setShowLocalTag] = useState(false);
+  const [showNpcFaction, setShowNpcFaction] = useState(true);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [removingSystemId, setRemovingSystemId] = useState<number | null>(null);
   const [upgrades, setUpgrades] = useState<Upgrade[]>([]);
@@ -199,10 +202,22 @@ export function PlanInspector() {
     void evesov.prefs.get(SHOW_LOCAL_TAG_KEY).then((v) => setShowLocalTag(v === '1'));
   }, []);
 
+  useEffect(() => {
+    void evesov.prefs.get(SHOW_NPC_FACTION_KEY).then((v) => setShowNpcFaction(v !== '0'));
+  }, []);
+
   const toggleShowLocalTag = useCallback(() => {
     setShowLocalTag((prev) => {
       const next = !prev;
       void evesov.prefs.set(SHOW_LOCAL_TAG_KEY, next ? '1' : '');
+      return next;
+    });
+  }, []);
+
+  const toggleShowNpcFaction = useCallback(() => {
+    setShowNpcFaction((prev) => {
+      const next = !prev;
+      void evesov.prefs.set(SHOW_NPC_FACTION_KEY, next ? '1' : '0');
       return next;
     });
   }, []);
@@ -276,6 +291,10 @@ export function PlanInspector() {
         <label className="inspector__pref" title="Show LOCAL badge for systems with status = local">
           <input type="checkbox" checked={showLocalTag} onChange={toggleShowLocalTag} />
           <span>Show LOCAL</span>
+        </label>
+        <label className="inspector__pref" title="Show NPC pirate-faction icon next to each system">
+          <input type="checkbox" checked={showNpcFaction} onChange={toggleShowNpcFaction} />
+          <span>Show NPC faction</span>
         </label>
         <OpsecPill />
         <button type="button" className="inspector__export-btn" onClick={() => void onExportPng()}>
@@ -401,6 +420,7 @@ export function PlanInspector() {
                                 <span className={`inspector__dot${over ? ' inspector__dot--over' : ''}`} />
                               </td>
                               <td>
+                                {showNpcFaction && <NpcFactionIcon regionName={s.regionName} />}
                                 <button
                                   className="inspector__system"
                                   type="button"

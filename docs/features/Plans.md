@@ -53,5 +53,3 @@ The active plan id is persisted in `preferences` under key `plan.active.v1`.
 - **Click system to focus**: clicking a system in the Inspector calls both `selectSystem(id)` and `focusPanel('system')`. DockShell registers a focus callback into `useUi` at mount; clicking re-opens the System tab if it was closed.
 
 ## Open questions / next steps
-
-- Plan diff view (compare two plans side-by-side).

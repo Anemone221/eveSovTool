@@ -1,4 +1,5 @@
 import { evesov } from "@/api/evesov";
+import { NpcFactionIcon } from "@/components/NpcFactionIcon";
 import { aggregateGrants, formatGrants, siteEffectsFor } from "@/data/effects";
 import { a0Sun, PI_PRODUCT_ICONS, PLANET_TYPE_ICONS } from "@/data/mapIcons";
 import {
@@ -177,6 +178,13 @@ export function SystemDetail() {
     const [highestMoonTier, setHighestMoonTier] = useState<4 | 8 | 16 | 32 | 64 | null>(null);
     const [moonScans, setMoonScans] = useState<MoonScan[]>([]);
     const [collapsedMoons, setCollapsedMoons] = useState<Set<number>>(new Set());
+    const [showNpcFaction, setShowNpcFaction] = useState(true);
+
+    useEffect(() => {
+        void evesov.prefs.get("ui.showNpcFactionIcons").then((v) => {
+            setShowNpcFaction(v !== "0");
+        });
+    }, []);
 
     useEffect(() => {
         void evesov.prefs.get("detail.section.star").then((v) => {
@@ -455,6 +463,7 @@ export function SystemDetail() {
             <header className="detail__header">
                 <div className="detail__title-row">
                     <h2>{system.name}</h2>
+                    {showNpcFaction && <NpcFactionIcon regionName={region.name} size={18} />}
                     {badgesForUpgrades(assigned.map((a) => a.upgradeName)).map(
                         (b) => (
                             <img

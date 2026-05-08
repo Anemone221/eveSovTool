@@ -79,13 +79,52 @@ interface TransferDbRow {
   export_all_unused: number;
 }
 
-const toPlanSummary = (r: PlanDbRow): PlanSummary => ({
+const toPlanSummary = (r: PlanDbRow, regions: string[] = []): PlanSummary => ({
   id: r.id,
   name: r.name,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
   readOnly: r.read_only === 1,
+  regions,
 });
+
+const PLAN_REGIONS_SQL = `
+  SELECT plan_id, region_name FROM (
+    SELECT ps.plan_id, r.name AS region_name
+      FROM plan_scopes ps JOIN regions r ON r.id = ps.scope_id
+      WHERE ps.scope_type = 'region'
+    UNION
+    SELECT ps.plan_id, r.name AS region_name
+      FROM plan_scopes ps
+      JOIN constellations c ON c.id = ps.scope_id
+      JOIN regions r ON r.id = c.region_id
+      WHERE ps.scope_type = 'constellation'
+    UNION
+    SELECT ps.plan_id, r.name AS region_name
+      FROM plan_scopes ps
+      JOIN systems s ON s.id = ps.scope_id
+      JOIN regions r ON r.id = s.region_id
+      WHERE ps.scope_type = 'system'
+  )
+  ORDER BY plan_id, region_name
+`;
+
+function regionsForPlan(planId: number): string[] {
+  return regionsByPlan().get(planId) ?? [];
+}
+
+function regionsByPlan(): Map<number, string[]> {
+  const rows = getDb()
+    .prepare(PLAN_REGIONS_SQL)
+    .all() as Array<{ plan_id: number; region_name: string }>;
+  const map = new Map<number, string[]>();
+  for (const row of rows) {
+    const list = map.get(row.plan_id);
+    if (list) list.push(row.region_name);
+    else map.set(row.plan_id, [row.region_name]);
+  }
+  return map;
+}
 
 function assertWritable(db: ReturnType<typeof import('../db/userDb.js').getDb>, planId: number): void {
   const row = db.prepare('SELECT read_only FROM plans WHERE id = ?').get(planId) as { read_only: number } | undefined;
@@ -289,11 +328,11 @@ function broadcastPlanChanged(planId: number): void {
 
 export function registerPlansIpc(): void {
   ipcMain.handle('plans.list', (): PlanSummary[] => {
-    return (
-      getDb()
-        .prepare('SELECT * FROM plans ORDER BY updated_at DESC')
-        .all() as PlanDbRow[]
-    ).map(toPlanSummary);
+    const rows = getDb()
+      .prepare('SELECT * FROM plans ORDER BY updated_at DESC')
+      .all() as PlanDbRow[];
+    const regions = regionsByPlan();
+    return rows.map((r) => toPlanSummary(r, regions.get(r.id) ?? []));
   });
 
   ipcMain.handle(
@@ -320,7 +359,7 @@ export function registerPlansIpc(): void {
         .prepare('SELECT system_id FROM plan_capital_systems WHERE plan_id = ?')
         .all(id) as Array<{ system_id: number }>;
       return {
-        plan: toPlanSummary(plan),
+        plan: toPlanSummary(plan, regionsForPlan(id)),
         scopes: scopeRows.map((r) => ({ scopeType: r.scope_type, scopeId: r.scope_id })),
         upgrades: upgradeRows.map(toPlanUpgrade),
         capitalSystemIds: capitalRows.map((r) => r.system_id)
@@ -359,8 +398,9 @@ export function registerPlansIpc(): void {
     const result = db
       .prepare('INSERT INTO plans (name, created_at, updated_at) VALUES (?, ?, ?)')
       .run(name.trim(), now, now);
-    const row = db.prepare('SELECT * FROM plans WHERE id = ?').get(Number(result.lastInsertRowid)) as PlanDbRow;
-    return toPlanSummary(row);
+    const newId = Number(result.lastInsertRowid);
+    const row = db.prepare('SELECT * FROM plans WHERE id = ?').get(newId) as PlanDbRow;
+    return toPlanSummary(row, regionsForPlan(newId));
   });
 
   ipcMain.handle('plans.rename', (_, id: number, name: string): PlanSummary => {
@@ -369,7 +409,7 @@ export function registerPlansIpc(): void {
       .prepare('UPDATE plans SET name = ?, updated_at = ? WHERE id = ?')
       .run(name.trim(), now, id);
     const row = getDb().prepare('SELECT * FROM plans WHERE id = ?').get(id) as PlanDbRow;
-    return toPlanSummary(row);
+    return toPlanSummary(row, regionsForPlan(id));
   });
 
   ipcMain.handle('plans.setReadOnly', (_, id: number, readOnly: boolean): PlanSummary => {
@@ -377,7 +417,7 @@ export function registerPlansIpc(): void {
     db.prepare('UPDATE plans SET read_only = ?, updated_at = ? WHERE id = ?')
       .run(readOnly ? 1 : 0, new Date().toISOString(), id);
     const row = db.prepare('SELECT * FROM plans WHERE id = ?').get(id) as PlanDbRow;
-    return toPlanSummary(row);
+    return toPlanSummary(row, regionsForPlan(id));
   });
 
   ipcMain.handle('plans.delete', (_, id: number): void => {
@@ -410,7 +450,7 @@ export function registerPlansIpc(): void {
       ).run(createdId, sourceId);
     })();
     const row = db.prepare('SELECT * FROM plans WHERE id = ?').get(createdId) as PlanDbRow;
-    return toPlanSummary(row);
+    return toPlanSummary(row, regionsForPlan(createdId));
   });
 
   ipcMain.handle('plans.setScopes', (_, planId: number, scopes: PlanScope[]): void => {

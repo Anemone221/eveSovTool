@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { evesov } from '@/api/evesov';
+import { NpcFactionIcon } from '@/components/NpcFactionIcon';
 import { useUi } from '@/state/uiStore';
 import { useActivePlanScopes } from '@/state/useActivePlanScopes';
 import type { TreeNodeRegion, TreeNodeConstellation, TreeNodeSystem } from '@shared/index';
@@ -9,6 +10,7 @@ const PREF_CLAIMED_ONLY = 'tree.claimedOnly';
 const PREF_GROUP_CLAIMED = 'tree.group.claimed';
 const PREF_GROUP_UNCLAIMED = 'tree.group.unclaimed';
 const PREF_GROUP_OTHER = 'tree.group.other';
+const PREF_SHOW_NPC_FACTION = 'ui.showNpcFactionIcons';
 
 type GroupKey = 'claimed' | 'unclaimed' | 'other';
 
@@ -24,6 +26,7 @@ export function TreeExplorer() {
   });
   const [openRegions, setOpenRegions] = useState<Set<number>>(new Set());
   const [openConstellations, setOpenConstellations] = useState<Set<number>>(new Set());
+  const [showNpcFaction, setShowNpcFactionState] = useState(true);
   const [menu, setMenu] = useState<{
     x: number;
     y: number;
@@ -54,7 +57,15 @@ export function TreeExplorer() {
         other: other === null ? false : other === 'true'
       });
     });
+    void evesov.prefs.get(PREF_SHOW_NPC_FACTION).then((v) => {
+      setShowNpcFactionState(v !== '0');
+    });
   }, []);
+
+  const setShowNpcFaction = (v: boolean) => {
+    setShowNpcFactionState(v);
+    void evesov.prefs.set(PREF_SHOW_NPC_FACTION, v ? '1' : '0');
+  };
 
   useEffect(() => {
     if (!menu) return;
@@ -200,6 +211,14 @@ export function TreeExplorer() {
         >
           Claimed
         </button>
+        <button
+          type="button"
+          className={`tree__toggle${showNpcFaction ? ' tree__toggle--on' : ''}`}
+          onClick={() => setShowNpcFaction(!showNpcFaction)}
+          title="Show NPC pirate-faction icon next to each system"
+        >
+          NPC
+        </button>
       </div>
       <div className="tree__body">
         {filtered.map((r) => {
@@ -210,6 +229,7 @@ export function TreeExplorer() {
                 <button className="tree__expand" onClick={() => toggleRegion(r.id)}>
                   <span className="tree__chevron">{open ? '▾' : '▸'}</span>
                   <span>{r.name}</span>
+                  {showNpcFaction && <NpcFactionIcon regionName={r.name} />}
                   <CountBadge value={counts.regionCounts.get(r.id)} fallback={r.constellations.length} />
                 </button>
                 {activePlanId !== null && planScopes.has('region', r.id) && (
@@ -295,6 +315,7 @@ export function TreeExplorer() {
                                 title={s.sovEligible ? 'sov-eligible' : 'no sov data'}
                               >
                                 <span className="tree__sec">{formatSec(s.securityStatus)}</span>
+                                {showNpcFaction && <NpcFactionIcon regionName={r.name} />}
                                 {planScopes.isCapital(s.id) && (
                                   <span className="tree__capital" title="Plan capital">⚑</span>
                                 )}
