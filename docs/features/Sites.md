@@ -1,7 +1,7 @@
 # Sites overview
 
 ## Purpose
-Plan-wide rollup of the anomalies the user's assignments would generate (Threat Detection arrays produce combat sites; Prospecting Arrays produce ore sites, with tier-3 Prospecting Arrays adding a Mercoxit anomaly). Top section: alphabetical totals across the plan. Below: a per-system × per-site grid with row totals, sorted by region → constellation → name. Only systems whose upgrades grant sites appear, to keep it focused.
+Plan-wide rollup of the anomalies the user's assignments would generate (Threat Detection arrays produce combat sites; Prospecting Arrays produce ore sites, with tier-3 Prospecting Arrays adding a Mercoxit anomaly). Output is split by upgrade category (Military, Industry — Strategic / System Upgrades / Effects grant no sites and are omitted). Each category section shows a totals strip plus a per-system × per-site grid with row totals. Only systems whose upgrades grant sites appear, to keep it focused.
 
 ## Schema
 Reads via `plans.matrix` (same IPC as the Assignment Matrix). All site computation is done client-side from the upgrade list; there is no `sites` table.
@@ -18,6 +18,7 @@ Reads via `plans.matrix` (same IPC as the Assignment Matrix). All site computati
 - `src/data/effects.ts` — `siteEffectsFor(upgradeName, sec)` and `aggregateGrants(lists)`. Encodes:
   - **Threat Detection** lookup tables for Major / Minor × tiers 1–3 across the five sec brackets.
   - **Prospecting Arrays** for the seven ores; tier 3 adds Mercoxit anomaly.
+- `src/data/upgradeCategories.ts` — `categoryOf(name)` used to bucket sites by their source upgrade's category.
 - `src/data/upgradeSymbols.ts` — abbreviation map for upgrade labels (e.g. `'Mjr.3'`, `'Mnr.2'`).
 - `src/components/FormatBar.tsx` — shared formatting checkbox bar.
 - `electron/ipc/exports.ts` — `exports.capturePng`.
@@ -27,10 +28,8 @@ Reads via `plans.matrix` (same IPC as the Assignment Matrix). All site computati
 - Same matrix-style layout as Assignment Matrix: single colspan'd header cell with rotated column labels, sticky combined system column.
 - **Upgrade abbreviation labels**: displayed below the system name in each row (e.g. "Mjr.3, Mnr.2"). The abbreviation map in `upgradeSymbols.ts` maps upgrade names to short codes. These labels are condensed enough to read in the system cell without widening it.
 - **Formatting bar** (checkboxes, persisted as `sites.fmt.*` prefs):
-  - `colorSystems` — system name background colour from worst-resource usage ratio (requires `plans.summary` cross-fetch).
-  - `upgradeSymbols` — show upgrade symbols in column headers.
   - `verticalHeaders` — toggle 45° ↔ 90° header angle (same CSS approach as Matrix).
-  - `showUpgradeLabels` — toggle the Mjr.3/Mnr.2 labels beneath system names.
+  - `breakout` — when on, render one section per upgrade category (Military / Industry today). When off, fold all sites into one combined "All sites" view.
 - **PNG export**: same `html2canvas` + `exports.capturePng` approach as Matrix — captures a wrapper around both the totals list and the per-system table at full content size. Opsec redaction is not yet implemented.
 - The formatting bar is the same `<FormatBar>` component as the Matrix, parameterised by the pref namespace.
 - "Only systems with grants" filtering keeps the view focused.

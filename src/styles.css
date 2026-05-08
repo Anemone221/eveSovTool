@@ -913,10 +913,46 @@ table.grid td.cost-produces { color: var(--ok); }
 /* Single colspan'd header cell holds all the rotated labels. With one cell there
    are no sibling backgrounds painting over each other's rotated text. */
 .matrix__headers-cell {
-  height: 180px;
+  height: 208px;
   padding: 0;
-  vertical-align: bottom;
+  vertical-align: top;
   /* inherits position: sticky; top: 0 from the .matrix thead th rule */
+}
+.matrix__category-banners {
+  display: flex;
+  height: 28px;
+  border-bottom: 1px solid var(--border);
+}
+.matrix__category-banner {
+  height: 28px;
+  line-height: 28px;
+  flex: 0 0 auto;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-dim);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-right: 2px solid rgba(0, 0, 0, 0.55);
+  box-sizing: border-box;
+}
+.matrix__category-banner:last-child { border-right: none; }
+.matrix__header-slot--cat-end {
+  border-right: 2px solid rgba(0, 0, 0, 0.55);
+}
+.matrix__cell--cat-end {
+  border-right: 2px solid rgba(0, 0, 0, 0.55) !important;
+}
+.matrix td.matrix__col--alt,
+.matrix th.matrix__col--alt,
+.matrix .matrix__header-slot.matrix__col--alt {
+  background: rgba(120, 170, 255, 0.06);
+}
+.matrix tbody tr:nth-child(even) td.matrix__col--alt {
+  background: rgba(120, 170, 255, 0.09);
 }
 .matrix__headers-row {
   display: flex;
@@ -951,15 +987,15 @@ table.grid td.cost-produces { color: var(--ok); }
 
 /* Corner header (System) - horizontal text, aligned to bottom of the rotated row */
 .matrix__corner {
-  height: 180px;
+  height: 208px;
   vertical-align: bottom;
   padding: 0 12px 8px 12px;
   color: var(--fg-dim);
 }
 
-/* Totals row sits below the rotated header */
+/* Totals row sits below the category banner + rotated header */
 .matrix__totals-row th {
-  top: 180px;
+  top: 208px;
   padding: 4px 6px;
 }
 .matrix__totals-cell {
@@ -1015,11 +1051,15 @@ thead .matrix__sticky-col { z-index: 3; background: var(--bg-elev); }
 
 /* Vertical header variant: 90° rotation, shorter row.
    Inherits transform-origin / bottom / left from .matrix__col-text base. */
-.matrix__headers-cell--vertical { height: 120px; }
-.matrix__headers-row--vertical { height: 120px; }
-.matrix__col-text--vertical { transform: rotate(-90deg); }
-.matrix--vertical .matrix__totals-row th { top: 120px; }
-.matrix__corner--vertical { height: 120px; }
+.matrix__headers-cell--vertical { height: 228px; }
+.matrix__headers-row--vertical { height: 200px; }
+.matrix__header-slot .matrix__col-text--vertical {
+  transform: rotate(-90deg);
+  left: 22px;
+  bottom: 8px;
+}
+.matrix--vertical .matrix__totals-row th { top: 228px; }
+.matrix__corner--vertical { height: 228px; }
 
 /* Usage column: compact Power/Workforce mini-meters in a dedicated cell */
 .matrix__usage-cell {
@@ -1068,6 +1108,10 @@ thead .matrix__sticky-col { z-index: 3; background: var(--bg-elev); }
   cursor: pointer;
 }
 .matrix__export-btn:hover { border-color: var(--accent); color: var(--accent); }
+.matrix__export-btn--confirm {
+  border-color: var(--danger, #c0392b);
+  color: var(--danger, #c0392b);
+}
 
 /* Format bar (shared) */
 .format-bar {

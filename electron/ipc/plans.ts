@@ -685,6 +685,21 @@ export function registerPlansIpc(): void {
   );
 
   ipcMain.handle(
+    'plans.setAllUpgradesInstalled',
+    (_, planId: number, installed: boolean): void => {
+      const db = getDb();
+      assertWritable(db, planId);
+      db.transaction(() => {
+        db.prepare(
+          `UPDATE plan_upgrades SET installed = ? WHERE plan_id = ?`
+        ).run(installed ? 1 : 0, planId);
+        db.prepare('UPDATE plans SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), planId);
+      })();
+      broadcastPlanChanged(planId);
+    }
+  );
+
+  ipcMain.handle(
     'plans.clearUpgrades',
     (_, planId: number, scope: ClearUpgradesScope): void => {
       const db = getDb();

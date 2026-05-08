@@ -11,6 +11,7 @@ Reads via IPC only. Backed by `plan_scopes`, `plan_upgrades` (including `install
 ## IPC
 
 - `plans.matrix(planId)` → `{ systems: PlanMatrixSystem[] }`. Each system carries constellation/region names, sec status, workforce status, assigned `upgrades: { name, installed }[]`, and a `usage: { power, workforce, ice, gas }` ratio object (consumed/available; `Infinity` when consumed > 0 with no available; `0` when both 0). Resource ratios are computed inline using the same balance SQL as `plans.summary`.
+- `plans.setAllUpgradesInstalled(planId, installed)` — bulk flips every assigned upgrade in the plan to installed/todo in one transaction. Used by the matrix's "Install all" / "Uninstall all" buttons.
 - `data.upgrades` — all upgrades, used to drive the column set.
 - `exports.capturePng(filename, dataUrl)` — triggers PNG export (renderer-side `html2canvas` → main-side save dialog + write).
 - Subscribes to `plan-changed` for live updates.
@@ -24,9 +25,9 @@ Reads via IPC only. Backed by `plan_scopes`, `plan_upgrades` (including `install
 
 ## Key decisions
 
-- **Column headers are rotated −45°** (bottom-left → upper-right). Every column header lives inside a single colspan'd `<th>` with absolutely-positioned rotated `<span>`s. A toggle switches to 90° (`transform: rotate(-90deg)`) — header row height adjusts accordingly (180 px → 120 px).
+- **Column headers are rotated −45°** (bottom-left → upper-right). Columns are grouped by upgrade category (Strategic / Military / Industry / System Upgrades / Effects from `src/data/upgradeCategories.ts`); each group renders as one colspan'd `<th>` with a 28 px category-banner strip above the rotated `<span>`s. A toggle switches to 90° (`transform: rotate(-90deg)`) — header row heights are 208 px (45°) or 148 px (90°), with the totals row's sticky `top` matching.
 - The system column is sticky on the left with the system name stacked over `<constellation> / <region>`.
-- The "Totals" row sticks at `top: 180px`. If sticking breaks, the likely cause is the `overflow: auto` scroll context — verify `border-collapse: separate` is set and the sticky parent is the scroll container, not a wrapper.
+- The "Totals" row sticks at `top: 208px` (default angle) / `top: 288px` (vertical headers — taller because 90°-rotated text needs full upgrade-name length, ~260 px, plus the 28 px category banner). If sticking breaks, the likely cause is the `overflow: auto` scroll context — verify `border-collapse: separate` is set and the sticky parent is the scroll container, not a wrapper.
 - **Cells are clickable** with a 3-state cycle: empty → todo (○) → installed (●) → empty. Empty stays visually blank; hover background indicates clickability. Backed by existing IPC: `plans.assignUpgrade`, `plans.setUpgradeInstalled`, `plans.removeUpgrade`. The `plan-changed` subscription refreshes after each call, so the totals row updates live.
 - **Formatting bar** (checkboxes, persisted as prefs with `matrix.fmt.*` keys):
     - `colorSystems` — adds a dedicated **Usage** column right of the System column with compact Power and Workforce mini-meters per row (shared `MiniMeter` from `src/components/MiniMeter.tsx`, also used by `PlanInspector`). Hue tracks consumed/available (green → yellow → red, `--danger` on overflow). Raw `consumedPower / availablePower / consumedWorkforce / availableWorkforce` are surfaced on each `PlanMatrixSystem` from `plans.matrix`. OpSec interaction (effective only during export capture): when both `powerHideVisual` and `workforceHideVisual` are set the entire Usage column is omitted from the DOM; when only one is set, only that meter is omitted while the column remains.

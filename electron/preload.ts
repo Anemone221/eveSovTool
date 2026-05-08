@@ -41,6 +41,8 @@ const api: EveSovApi = {
       ipcRenderer.invoke('plans.setSystemStatus', planId, systemId, status),
     setUpgradeInstalled: (planId, systemId, upgradeName, installed) =>
       ipcRenderer.invoke('plans.setUpgradeInstalled', planId, systemId, upgradeName, installed),
+    setAllUpgradesInstalled: (planId, installed) =>
+      ipcRenderer.invoke('plans.setAllUpgradesInstalled', planId, installed),
     clearUpgrades: (planId, scope) => ipcRenderer.invoke('plans.clearUpgrades', planId, scope),
     systemBalance: (planId, systemId) =>
       ipcRenderer.invoke('plans.systemBalance', planId, systemId),

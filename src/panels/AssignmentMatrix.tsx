@@ -5,6 +5,11 @@ import { OpsecPill } from "@/components/OpsecPill";
 import { buildExportFilename } from "@/data/exportFilename";
 import { withOpsecCapture } from "@/data/opsecCapture";
 import { upgradeSymbols } from "@/data/upgradeSymbols";
+import {
+    CATEGORY_ORDER,
+    categoryOf,
+    type UpgradeCategory,
+} from "@/data/upgradeCategories";
 import { useExportRegistry } from "@/state/exportRegistry";
 import { useEffectiveOpsec, useOpsec } from "@/state/opsecStore";
 import { useUi } from "@/state/uiStore";
@@ -56,6 +61,9 @@ export function AssignmentMatrix() {
             opsec.hideSystemNames ? (systemNameById.get(id) ?? real) : real,
         [opsec.hideSystemNames, systemNameById],
     );
+    const [bulkPending, setBulkPending] = useState<
+        "install" | "uninstall" | null
+    >(null);
     const [alnPending, setAlnPending] = useState<{
         systemId: number;
         systemName: string;
@@ -118,10 +126,34 @@ export function AssignmentMatrix() {
     }, [matrix]);
 
     const columns = useMemo(() => {
-        const all = allUpgrades.map((u) => u.name);
-        if (!fmt.hideUnused) return all;
-        return all.filter((n) => (totals.get(n) ?? 0) > 0);
+        let names = allUpgrades.map((u) => u.name);
+        if (fmt.hideUnused) names = names.filter((n) => (totals.get(n) ?? 0) > 0);
+        return names.sort((a, b) => {
+            const ai = CATEGORY_ORDER.indexOf(categoryOf(a));
+            const bi = CATEGORY_ORDER.indexOf(categoryOf(b));
+            if (ai !== bi) return ai - bi;
+            return a.localeCompare(b);
+        });
     }, [allUpgrades, fmt.hideUnused, totals]);
+
+    const categoryGroups = useMemo(() => {
+        const groups: { category: UpgradeCategory; cols: string[] }[] = [];
+        for (const c of columns) {
+            const cat = categoryOf(c);
+            const last = groups[groups.length - 1];
+            if (last && last.category === cat) last.cols.push(c);
+            else groups.push({ category: cat, cols: [c] });
+        }
+        return groups;
+    }, [columns]);
+
+    const categoryEndCols = useMemo(() => {
+        const set = new Set<string>();
+        for (const g of categoryGroups) {
+            if (g.cols.length > 0) set.add(g.cols[g.cols.length - 1]);
+        }
+        return set;
+    }, [categoryGroups]);
 
     const onCellClick = useCallback(
         async (
@@ -284,6 +316,52 @@ export function AssignmentMatrix() {
                 >
                     Copy as Markdown
                 </button>
+                <button
+                    type="button"
+                    className={`matrix__export-btn${bulkPending === "install" ? " matrix__export-btn--confirm" : ""}`}
+                    onClick={() => {
+                        if (activePlanId === null) return;
+                        if (bulkPending !== "install") {
+                            setBulkPending("install");
+                            return;
+                        }
+                        setBulkPending(null);
+                        void evesov.plans.setAllUpgradesInstalled(
+                            activePlanId,
+                            true,
+                        );
+                    }}
+                    onBlur={() =>
+                        setBulkPending((p) =>
+                            p === "install" ? null : p,
+                        )
+                    }
+                >
+                    {bulkPending === "install" ? "Confirm?" : "Install all"}
+                </button>
+                <button
+                    type="button"
+                    className={`matrix__export-btn${bulkPending === "uninstall" ? " matrix__export-btn--confirm" : ""}`}
+                    onClick={() => {
+                        if (activePlanId === null) return;
+                        if (bulkPending !== "uninstall") {
+                            setBulkPending("uninstall");
+                            return;
+                        }
+                        setBulkPending(null);
+                        void evesov.plans.setAllUpgradesInstalled(
+                            activePlanId,
+                            false,
+                        );
+                    }}
+                    onBlur={() =>
+                        setBulkPending((p) =>
+                            p === "uninstall" ? null : p,
+                        )
+                    }
+                >
+                    {bulkPending === "uninstall" ? "Confirm?" : "Uninstall all"}
+                </button>
             </div>
             <div className="matrix__scroll" ref={matrixRef}>
                 <table className={tableClass}>
@@ -299,17 +377,33 @@ export function AssignmentMatrix() {
                                 className={headerCellClass}
                                 colSpan={columns.length}
                             >
+                                <div className="matrix__category-banners">
+                                    {categoryGroups.map((g) => (
+                                        <div
+                                            key={g.category}
+                                            className="matrix__category-banner"
+                                            style={{ width: `${g.cols.length * 30}px` }}
+                                        >
+                                            {g.category}
+                                        </div>
+                                    ))}
+                                </div>
                                 <div
                                     className={`matrix__headers-row${vertical ? " matrix__headers-row--vertical" : ""}`}
                                 >
-                                    {columns.map((c) => {
+                                    {columns.map((c, i) => {
                                         const label = fmt.upgradeSymbols
                                             ? (upgradeSymbols[c] ?? c)
                                             : c;
+                                        const endCls = categoryEndCols.has(c)
+                                            ? " matrix__header-slot--cat-end"
+                                            : "";
+                                        const altCls =
+                                            i % 2 === 1 ? " matrix__col--alt" : "";
                                         return (
                                             <div
                                                 key={c}
-                                                className="matrix__header-slot"
+                                                className={`matrix__header-slot${endCls}${altCls}`}
                                             >
                                                 <span className={colTextClass}>
                                                     {label}
@@ -327,10 +421,18 @@ export function AssignmentMatrix() {
                             {showUsageCol && (
                                 <th className="matrix__totals-cell matrix__usage-cell" />
                             )}
-                            {columns.map((c) => {
+                            {columns.map((c, i) => {
                                 const t = totals.get(c) ?? 0;
+                                const endCls = categoryEndCols.has(c)
+                                    ? " matrix__cell--cat-end"
+                                    : "";
+                                const altCls =
+                                    i % 2 === 1 ? " matrix__col--alt" : "";
                                 return (
-                                    <th key={c} className="matrix__totals-cell">
+                                    <th
+                                        key={c}
+                                        className={`matrix__totals-cell${endCls}${altCls}`}
+                                    >
                                         {t > 0 ? t : ""}
                                     </th>
                                 );
@@ -551,7 +653,7 @@ export function AssignmentMatrix() {
                                             )}
                                         </td>
                                     )}
-                                    {columns.map((c) => {
+                                    {columns.map((c, i) => {
                                         const has = installedMap.has(c);
                                         const installed =
                                             installedMap.get(c) === true;
@@ -563,6 +665,8 @@ export function AssignmentMatrix() {
                                                     : "○"
                                                 : "●";
                                         }
+                                        const altCls =
+                                            i % 2 === 1 ? " matrix__col--alt" : "";
                                         let title: string;
                                         if (!has) {
                                             title = `Click to add ${c}`;
@@ -581,10 +685,13 @@ export function AssignmentMatrix() {
                                                 ? `${c} (installed) — click to remove`
                                                 : `${c} (todo) — click to mark installed`;
                                         }
+                                        const endCls = categoryEndCols.has(c)
+                                            ? " matrix__cell--cat-end"
+                                            : "";
                                         return (
                                             <td
                                                 key={c}
-                                                className={`matrix__cell matrix__cell--clickable${has ? " matrix__cell--on" : ""}`}
+                                                className={`matrix__cell matrix__cell--clickable${has ? " matrix__cell--on" : ""}${endCls}${altCls}`}
                                             >
                                                 <button
                                                     type="button"

@@ -92,6 +92,47 @@ export function siteEffectsFor(upgradeName: string, sec: number | null): SiteGra
   return [];
 }
 
+const SITE_ORDER: readonly string[] = [
+  // Military (1/10 → 10/10 with Hidden/Forsaken/Forlorn variants under each base)
+  'Refuge',
+  'Den', 'Hidden Den', 'Forsaken Den', 'Forlorn Den',
+  'Rally Point', 'Hidden Rally Point', 'Forsaken Rally Point', 'Forlorn Rally Point',
+  'Hub', 'Hidden Hub', 'Forsaken Hub', 'Forlorn Hub',
+  'Haven',
+  'Sanctum', 'Forsaken Sanctum',
+];
+const SITE_ORDER_INDEX: ReadonlyMap<string, number> = new Map(
+  SITE_ORDER.map((s, i) => [s, i])
+);
+const MINERAL_ORDER: readonly string[] = [
+  'Tritanium', 'Pyerite', 'Mexallon', 'Isogen', 'Nocxium', 'Zydrine', 'Megacyte',
+];
+const MINERAL_INDEX: ReadonlyMap<string, number> = new Map(
+  MINERAL_ORDER.map((m, i) => [m, i])
+);
+
+export function siteSortKey(site: string): number {
+  const m = SITE_ORDER_INDEX.get(site);
+  if (m !== undefined) return m;
+  // Industry: "Lvl <tier> <Mineral> Site" — tier first, then mineral order.
+  const ore = site.match(/^Lvl ([123]) (\w+) Site$/);
+  if (ore) {
+    const tier = parseInt(ore[1], 10);
+    const mineral = ore[2];
+    const mIdx = MINERAL_INDEX.get(mineral) ?? 999;
+    return 1000 + tier * 100 + mIdx;
+  }
+  if (site === 'Mercoxit Anomaly') return 9000;
+  return 9999;
+}
+
+export function compareSites(a: string, b: string): number {
+  const ka = siteSortKey(a);
+  const kb = siteSortKey(b);
+  if (ka !== kb) return ka - kb;
+  return a.localeCompare(b);
+}
+
 export function aggregateGrants(lists: SiteGrant[][]): SiteGrant[] {
   const map = new Map<string, number>();
   for (const list of lists) {

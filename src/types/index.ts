@@ -362,6 +362,10 @@ export interface EveSovApi {
             upgradeName: string,
             installed: boolean,
         ) => Promise<void>;
+        setAllUpgradesInstalled: (
+            planId: number,
+            installed: boolean,
+        ) => Promise<void>;
         clearUpgrades: (
             planId: number,
             scope: ClearUpgradesScope,
