@@ -1,11 +1,12 @@
 import { evesov } from '@/api/evesov';
 
-export type ThemeName = 'abyss' | 'caldari' | 'high-contrast';
+export type ThemeName = 'abyss' | 'caldari' | 'high-contrast' | 'light';
 
 export const THEMES: { id: ThemeName; label: string }[] = [
   { id: 'abyss', label: 'Abyss' },
   { id: 'caldari', label: 'Caldari' },
-  { id: 'high-contrast', label: 'High contrast' }
+  { id: 'high-contrast', label: 'High contrast' },
+  { id: 'light', label: 'Light (slate)' }
 ];
 
 export const COLOR_TOKENS: { id: string; label: string; cssVar: string }[] = [

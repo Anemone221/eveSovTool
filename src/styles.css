@@ -43,6 +43,51 @@
   --ok: #00e676;
 }
 
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #dee2e8;
+  --bg-elev: #e6eaef;
+  --bg-elev-2: #eef1f5;
+  --fg: #1a1f26;
+  --fg-dim: #3d4754;
+  --fg-mute: #6b7380;
+  --accent: #1d6fc7;
+  --border: #c0c5cc;
+  --danger: #b53127;
+  --ok: #1e7a3c;
+}
+
+[data-theme="light"] .dockview-theme-abyss {
+  --dv-group-view-background-color: var(--bg);
+  --dv-tabs-and-actions-container-background-color: var(--bg-elev);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--bg);
+  --dv-activegroup-visiblepanel-tab-color: var(--fg);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--bg-elev);
+  --dv-activegroup-hiddenpanel-tab-color: var(--fg-dim);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--bg);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--fg-dim);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--bg-elev);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--fg-mute);
+  --dv-tab-divider-color: var(--border);
+  --dv-separator-border: var(--border);
+  --dv-paneview-active-outline-color: var(--accent);
+  --dv-paneview-header-border-color: var(--border);
+  --dv-tabs-container-scrollbar-color: var(--fg-mute);
+  --dv-icon-hover-background-color: rgba(0, 0, 0, 0.08);
+  --dv-floating-box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  --dv-drag-over-background-color: rgba(29, 111, 199, 0.15);
+}
+
+[data-theme="light"] .matrix tbody tr:hover td,
+[data-theme="light"] .matrix tbody tr:hover .matrix__sticky-col {
+  background: rgba(0, 0, 0, 0.04);
+}
+[data-theme="light"] .tree__node:hover,
+[data-theme="light"] .plans__row:hover,
+[data-theme="light"] .inspector__row:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
 * {
   box-sizing: border-box;
 }

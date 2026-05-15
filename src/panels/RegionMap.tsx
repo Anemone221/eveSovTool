@@ -882,7 +882,9 @@ export function RegionMap() {
             canvas.width = W;
             canvas.height = H;
             const ctx = canvas.getContext('2d')!;
-            ctx.fillStyle = '#111111';
+            const mapBg = getComputedStyle(document.documentElement)
+              .getPropertyValue('--bg-elev-2').trim() || '#111111';
+            ctx.fillStyle = mapBg;
             ctx.fillRect(0, 0, W, H);
             ctx.drawImage(img, 0, 0, W, H);
             resolve(canvas.toDataURL('image/png'));
