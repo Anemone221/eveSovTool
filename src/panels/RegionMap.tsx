@@ -28,18 +28,14 @@ import type { PlanetType } from '@/data/piRecipes';
 // rules don't propagate, so redaction happens here directly.
 function applyRegionMapOpsec(clone: SVGSVGElement): void {
   const flags = useOpsec.getState().flags;
-  if (flags.hideMapIcons) {
-    clone.querySelectorAll('#evesov-overlay image').forEach((el) => el.remove());
-  } else {
-    if (flags.hideStationIcons) {
-      clone.querySelectorAll('#evesov-overlay image.evesov-icon--structure').forEach((el) => el.remove());
-    }
-    if (flags.hideUpgradeIcons) {
-      clone.querySelectorAll('#evesov-overlay image.evesov-icon--upgrade').forEach((el) => el.remove());
-    }
-    if (flags.hideSupercaps) {
-      clone.querySelectorAll('.evesov-icon--supercap').forEach((el) => el.remove());
-    }
+  if (flags.hideStationIcons) {
+    clone.querySelectorAll('#evesov-overlay image.evesov-icon--structure').forEach((el) => el.remove());
+  }
+  if (flags.hideUpgradeIcons) {
+    clone.querySelectorAll('#evesov-overlay image.evesov-icon--upgrade').forEach((el) => el.remove());
+  }
+  if (flags.hideSupercaps) {
+    clone.querySelectorAll('.evesov-icon--supercap').forEach((el) => el.remove());
   }
   if (flags.hideJumpBridges) {
     clone.querySelector('#evesov-lines')?.remove();
@@ -180,6 +176,9 @@ export function RegionMap() {
   const [showLegend, setShowLegend] = useState(true);
   const [statMode, setStatMode] = useState<StatMode>('none');
   const [moonStats, setMoonStats] = useState<Record<number, MoonCounts>>({});
+
+  const captureActive = useOpsec((s) => s.captureActive);
+  const opsecFlags = useOpsec((s) => s.flags);
 
   // System SVG positions parsed from the dotlan <use> elements.
   const [positions, setPositions] = useState<Map<number, { x: number; y: number }>>(new Map());
@@ -568,31 +567,32 @@ export function RegionMap() {
     };
 
     // 2. ALN jump bridge lines
-    for (const [a, b] of overlay.alnPairs) {
-      const posA = pos.get(a);
-      const posB = pos.get(b);
-      if (!posA || !posB) continue;
-      const x1 = posA.x + NODE_CX;
-      const y1 = posA.y + NODE_CY;
-      const x2 = posB.x + NODE_CX;
-      const y2 = posB.y + NODE_CY;
-      // Quadratic bezier: control point offset perpendicularly from the midpoint.
-      const mx = (x1 + x2) / 2;
-      const my = (y1 + y2) / 2;
-      const dx = x2 - x1;
-      const dy = y2 - y1;
-      const len = Math.sqrt(dx * dx + dy * dy) || 1;
-      const bulge = Math.min(len * 0.3, 40);
-      const cx = mx - (dy / len) * bulge;
-      const cy = my + (dx / len) * bulge;
-      const path = document.createElementNS(NS, 'path');
-      path.setAttribute('d', `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`);
-      path.setAttribute('stroke', '#58a6ff');
-      path.setAttribute('stroke-width', '2');
-      path.setAttribute('stroke-dasharray', '6 3');
-      path.setAttribute('fill', 'none');
-      path.setAttribute('opacity', '0.85');
-      linesG.appendChild(path);
+    if (!(captureActive && opsecFlags.hideJumpBridges)) {
+      for (const [a, b] of overlay.alnPairs) {
+        const posA = pos.get(a);
+        const posB = pos.get(b);
+        if (!posA || !posB) continue;
+        const x1 = posA.x + NODE_CX;
+        const y1 = posA.y + NODE_CY;
+        const x2 = posB.x + NODE_CX;
+        const y2 = posB.y + NODE_CY;
+        const mx = (x1 + x2) / 2;
+        const my = (y1 + y2) / 2;
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        const bulge = Math.min(len * 0.3, 40);
+        const cx = mx - (dy / len) * bulge;
+        const cy = my + (dx / len) * bulge;
+        const path = document.createElementNS(NS, 'path');
+        path.setAttribute('d', `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`);
+        path.setAttribute('stroke', '#58a6ff');
+        path.setAttribute('stroke-width', '2');
+        path.setAttribute('stroke-dasharray', '6 3');
+        path.setAttribute('fill', 'none');
+        path.setAttribute('opacity', '0.85');
+        linesG.appendChild(path);
+      }
     }
 
     // DB icon for a single upgrade name, falling back to the provided default.
@@ -666,12 +666,27 @@ export function RegionMap() {
       }
 
       // Structure icons above node: bottom of row sits just above the node top
-      if (structureIcons.length > 0) {
+      if (structureIcons.length > 0 && !(captureActive && opsecFlags.hideStationIcons)) {
         addIconRow(structureIcons, cx, p.y - ICON_SIZE - 2, structureTips, undefined, 'evesov-icon--structure');
       }
-      // Upgrade icons below node: top of row sits just below the node bottom
-      if (upgradeIcons.length > 0) {
-        addIconRow(upgradeIcons, cx, p.y + NODE_H + 2, upgradeTips, upgradeClasses, 'evesov-icon--upgrade');
+      // Upgrade icons below node: apply live opsec filters when capturing
+      let liveUpgradeIcons = upgradeIcons;
+      let liveUpgradeTips = upgradeTips;
+      let liveUpgradeClasses = upgradeClasses;
+      if (captureActive) {
+        if (opsecFlags.hideUpgradeIcons) {
+          liveUpgradeIcons = [];
+          liveUpgradeTips = [];
+          liveUpgradeClasses = [];
+        } else if (opsecFlags.hideSupercaps) {
+          const keep = upgradeIcons.map((_, i) => upgradeClasses[i] !== 'evesov-icon--supercap');
+          liveUpgradeIcons = upgradeIcons.filter((_, i) => keep[i]);
+          liveUpgradeTips = upgradeTips.filter((_, i) => keep[i]);
+          liveUpgradeClasses = upgradeClasses.filter((_, i) => keep[i]);
+        }
+      }
+      if (liveUpgradeIcons.length > 0) {
+        addIconRow(liveUpgradeIcons, cx, p.y + NODE_H + 2, liveUpgradeTips, liveUpgradeClasses, 'evesov-icon--upgrade');
       }
 
       const perfectPi = statMode === 'pi-tier'
@@ -757,7 +772,7 @@ export function RegionMap() {
       svgEl.querySelector('#evesov-lines')?.remove();
       svgEl.querySelector('#evesov-overlay')?.remove();
     };
-  }, [overlay, auraData, positions, statMode, moonStats]);
+  }, [overlay, auraData, positions, statMode, moonStats, captureActive, opsecFlags]);
 
   // Fetch overlay + aura data when plan or region changes
   const fetchOverlayData = useCallback(() => {

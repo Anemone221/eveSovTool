@@ -366,6 +366,13 @@ export function AssignmentMatrix() {
             </div>
             <div className="matrix__scroll" ref={matrixRef}>
                 <table className={tableClass}>
+                    <colgroup>
+                        <col style={{ width: 200 }} />
+                        {showUsageCol && <col style={{ width: 110 }} />}
+                        {columns.map((c) => (
+                            <col key={c} style={{ width: vertical ? 30 : 50 }} />
+                        ))}
+                    </colgroup>
                     <thead>
                         <tr>
                             <th className={cornerClass}>System</th>

@@ -381,6 +381,13 @@ export function SitesOverview() {
               <h3>{breakdownHeading}</h3>
               <div className="matrix__scroll">
                 <table className={tableClass}>
+                  <colgroup>
+                    <col style={{ width: 200 }} />
+                    {sec.columns.map((c) => (
+                      <col key={c} style={{ width: vertical ? 30 : 50 }} />
+                    ))}
+                    <col style={{ width: vertical ? 30 : 50 }} />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th className={cornerClass}>System</th>

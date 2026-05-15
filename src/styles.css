@@ -960,6 +960,7 @@ table.grid td.cost-produces { color: var(--ok); }
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
+.matrix--wide-cols { table-layout: fixed; }
 
 /* Headers (top row): rotated 45° from bottom-left to upper-right */
 .matrix thead th {
@@ -1034,6 +1035,18 @@ table.grid td.cost-produces { color: var(--ok); }
   flex: 0 0 50px;
   width: 50px;
   min-width: 50px;
+}
+.matrix--wide-cols .matrix__header-slot--total {
+  flex: 0 0 50px;
+  width: 50px;
+  min-width: 50px;
+}
+.matrix--wide-cols .matrix__cell.matrix__col-total {
+  width: 50px;
+  min-width: 50px;
+}
+.matrix--wide-cols .matrix__header-slot .matrix__col-text {
+  left: 25px;
 }
 .matrix__header-slot--total {
   flex: 0 0 40px;
