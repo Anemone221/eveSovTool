@@ -152,12 +152,33 @@ interface MoonScanRow {
   moon_number: number;
 }
 
+interface MoonScanRowById {
+  ore_type: string;
+  ore_percent: number;
+}
+
 function findOreYields(oreType: string): Partial<Record<GooKey, number>> | null {
   const lower = oreType.toLowerCase();
   for (const [name, yields] of Object.entries(MOON_ORE_YIELDS)) {
     if (lower.includes(name.toLowerCase())) return yields;
   }
   return null;
+}
+
+export function computeProfitabilityForMoonId(
+  db: Database.Database,
+  moonId: number,
+  structureType: DrillStructureType,
+  structureId: number | null = null,
+): ProfitabilityResult | null {
+  const scans = db
+    .prepare(
+      `SELECT ore_type, ore_percent
+         FROM moon_scans
+        WHERE moon_id = ?`,
+    )
+    .all(moonId) as MoonScanRowById[];
+  return computeFromScans(db, scans, structureType, structureId);
 }
 
 export function computeProfitabilityForMoon(
@@ -174,6 +195,15 @@ export function computeProfitabilityForMoon(
         WHERE system_id = ? AND moon_number = ?`,
     )
     .all(systemId, moonNumber) as MoonScanRow[];
+  return computeFromScans(db, scans, structureType, structureId);
+}
+
+function computeFromScans(
+  db: Database.Database,
+  scans: MoonScanRowById[],
+  structureType: DrillStructureType,
+  structureId: number | null,
+): ProfitabilityResult | null {
   if (scans.length === 0) return null;
 
   const field = getCurrentPriceField(db);

@@ -101,7 +101,10 @@ const api: EveSovApi = {
     exportDnaText: (planId) => ipcRenderer.invoke('exports.exportDnaText', planId),
     importDna: (dna) => ipcRenderer.invoke('exports.importDna', dna),
     exportMoonScans: (planId) => ipcRenderer.invoke('exports.exportMoonScans', planId),
-    importMoonScans: (data) => ipcRenderer.invoke('exports.importMoonScans', data)
+    importMoonScans: (data) => ipcRenderer.invoke('exports.importMoonScans', data),
+    listOpsecPresets: () => ipcRenderer.invoke('exports.listOpsecPresets'),
+    saveOpsecPreset: (name, flags) => ipcRenderer.invoke('exports.saveOpsecPreset', name, flags),
+    deleteOpsecPreset: (name) => ipcRenderer.invoke('exports.deleteOpsecPreset', name)
   },
   structures: {
     list: (planId, systemId?) => ipcRenderer.invoke('structures.list', planId, systemId),
@@ -122,10 +125,10 @@ const api: EveSovApi = {
     sessions: () => ipcRenderer.invoke('moonScans.sessions'),
     deleteSession: (sessionId) => ipcRenderer.invoke('moonScans.deleteSession', sessionId),
     getDrillTypes: () => ipcRenderer.invoke('moonScans.getDrillTypes'),
-    setDrillType: (systemId, moonNumber, structureType) =>
-      ipcRenderer.invoke('moonScans.setDrillType', systemId, moonNumber, structureType),
-    profitability: (systemId, moonNumber, structureType) =>
-      ipcRenderer.invoke('moonScans.profitability', systemId, moonNumber, structureType),
+    setDrillType: (moonId, systemId, structureType) =>
+      ipcRenderer.invoke('moonScans.setDrillType', moonId, systemId, structureType),
+    profitability: (moonId, structureType) =>
+      ipcRenderer.invoke('moonScans.profitability', moonId, structureType),
   },
   events: {
     on: (channel, listener) => {

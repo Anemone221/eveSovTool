@@ -24,9 +24,21 @@ export function ExportsPage(): JSX.Element {
   const focusPanel = useUi((s) => s.focusPanel);
   const flags = useOpsec((s) => s.flags);
   const preset = useOpsec((s) => s.preset);
+  const userPresets = useOpsec((s) => s.userPresets);
   const setFlag = useOpsec((s) => s.setFlag);
   const applyPreset = useOpsec((s) => s.applyPreset);
+  const applyUserPreset = useOpsec((s) => s.applyUserPreset);
+  const saveUserPreset = useOpsec((s) => s.saveUserPreset);
+  const deleteUserPreset = useOpsec((s) => s.deleteUserPreset);
   const clearAll = useOpsec((s) => s.clearAll);
+  const [savingPreset, setSavingPreset] = useState(false);
+  const [presetNameDraft, setPresetNameDraft] = useState('');
+  const [presetError, setPresetError] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<
+    | { kind: 'overwrite'; name: string }
+    | { kind: 'delete'; name: string }
+    | null
+  >(null);
   const handlers = useExportRegistry((s) => s.handlers);
   const [selected, setSelected] = useState<Record<ExportablePanel, boolean>>({
     matrix: false,
@@ -232,30 +244,162 @@ export function ExportsPage(): JSX.Element {
           <h3>Op-sec</h3>
           <div className="exports__card-actions">
             <span className="exports__preset-label">Preset:</span>
-            <button
-              type="button"
-              className={`exports__preset${preset === 'public' ? ' exports__preset--active' : ''}`}
-              onClick={() => void applyPreset('public')}
+            <select
+              className="exports__preset-select"
+              value={preset}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === 'none') void clearAll();
+                else if (value === 'public' || value === 'internal') void applyPreset(value);
+                else if (value === 'custom') return;
+                else void applyUserPreset(value);
+              }}
             >
-              Public share
-            </button>
-            <button
-              type="button"
-              className={`exports__preset${preset === 'internal' ? ' exports__preset--active' : ''}`}
-              onClick={() => void applyPreset('internal')}
-            >
-              Internal share
-            </button>
-            <button
-              type="button"
-              className={`exports__preset${preset === 'none' ? ' exports__preset--active' : ''}`}
-              onClick={() => void clearAll()}
-            >
-              None
-            </button>
-            {preset === 'custom' && <span className="exports__preset exports__preset--active">Custom</span>}
+              <optgroup label="Built-in">
+                <option value="none">None</option>
+                <option value="public">Public share</option>
+                <option value="internal">Internal share</option>
+              </optgroup>
+              {userPresets.length > 0 && (
+                <optgroup label="My presets">
+                  {userPresets.map((up) => (
+                    <option key={up.name} value={up.name}>
+                      {up.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {preset === 'custom' && <option value="custom">Custom (unsaved)</option>}
+            </select>
+            {savingPreset ? (
+              <>
+                <input
+                  type="text"
+                  className="exports__preset-name-input"
+                  value={presetNameDraft}
+                  placeholder="Preset name"
+                  autoFocus
+                  onChange={(e) => {
+                    setPresetNameDraft(e.target.value);
+                    setPresetError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setSavingPreset(false);
+                      setPresetError(null);
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="exports__preset"
+                  onClick={async () => {
+                    const name = presetNameDraft.trim();
+                    if (!name) {
+                      setPresetError('Name required');
+                      return;
+                    }
+                    if (['public', 'internal', 'none', 'custom'].includes(name.toLowerCase())) {
+                      setPresetError('Reserved name');
+                      return;
+                    }
+                    const existing = userPresets.some((p) => p.name === name);
+                    if (existing) {
+                      setConfirmAction({ kind: 'overwrite', name });
+                      return;
+                    }
+                    try {
+                      await saveUserPreset(name);
+                      setSavingPreset(false);
+                      setPresetNameDraft('');
+                      setPresetError(null);
+                    } catch (err) {
+                      setPresetError(err instanceof Error ? err.message : 'Save failed');
+                    }
+                  }}
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  className="exports__preset"
+                  onClick={() => {
+                    setSavingPreset(false);
+                    setPresetNameDraft('');
+                    setPresetError(null);
+                  }}
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="exports__preset"
+                  onClick={() => {
+                    const seed = userPresets.some((p) => p.name === preset) ? preset : '';
+                    setPresetNameDraft(seed);
+                    setSavingPreset(true);
+                  }}
+                  title="Save current flags as a named preset"
+                >
+                  Save as…
+                </button>
+                {userPresets.some((p) => p.name === preset) && (
+                  <button
+                    type="button"
+                    className="exports__preset"
+                    onClick={() => setConfirmAction({ kind: 'delete', name: preset })}
+                  >
+                    Delete
+                  </button>
+                )}
+              </>
+            )}
           </div>
         </header>
+        {confirmAction && (
+          <div className="exports__opsec-confirm">
+            <span className="exports__opsec-confirm-text">
+              {confirmAction.kind === 'overwrite'
+                ? `Overwrite preset "${confirmAction.name}"?`
+                : `Delete preset "${confirmAction.name}"?`}
+            </span>
+            <button
+              type="button"
+              className="exports__preset exports__preset--active"
+              onClick={async () => {
+                const action = confirmAction;
+                setConfirmAction(null);
+                try {
+                  if (action.kind === 'overwrite') {
+                    await saveUserPreset(action.name);
+                    setSavingPreset(false);
+                    setPresetNameDraft('');
+                    setPresetError(null);
+                  } else {
+                    await deleteUserPreset(action.name);
+                  }
+                } catch (err) {
+                  setPresetError(err instanceof Error ? err.message : 'Operation failed');
+                }
+              }}
+            >
+              {confirmAction.kind === 'overwrite' ? 'Overwrite' : 'Delete'}
+            </button>
+            <button
+              type="button"
+              className="exports__preset"
+              onClick={() => setConfirmAction(null)}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+        {presetError && (
+          <div className="exports__opsec-summary exports__opsec-summary--error">{presetError}</div>
+        )}
         <div className="exports__opsec-grid">
           {(Object.keys(FLAG_KEYS) as (keyof OpsecFlags)[]).map((key) => (
             <label key={key} className="exports__opsec-row">

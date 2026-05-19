@@ -306,6 +306,78 @@ export function registerExportsIpc(): void {
       .run(key, value);
   });
 
+  ipcMain.handle(
+    'exports.listOpsecPresets',
+    (): Array<{ name: string; flags: Record<string, boolean>; updatedAt: string }> => {
+      const rows = getDb()
+        .prepare('SELECT name, flags_json, updated_at FROM opsec_presets ORDER BY name COLLATE NOCASE')
+        .all() as Array<{ name: string; flags_json: string; updated_at: string }>;
+      const out: Array<{ name: string; flags: Record<string, boolean>; updatedAt: string }> = [];
+      for (const r of rows) {
+        let parsed: Record<string, boolean> = {};
+        try {
+          const raw = JSON.parse(r.flags_json) as unknown;
+          if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+            for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+              if (typeof v === 'boolean') parsed[k] = v;
+            }
+          }
+        } catch {
+          parsed = {};
+        }
+        out.push({ name: r.name, flags: parsed, updatedAt: r.updated_at });
+      }
+      return out;
+    }
+  );
+
+  ipcMain.handle(
+    'exports.saveOpsecPreset',
+    (_, name: string, flags: Record<string, boolean>): void => {
+      if (typeof name !== 'string') throw new Error('Preset name must be a string');
+      const trimmed = name.trim();
+      if (trimmed.length === 0 || trimmed.length > 64) {
+        throw new Error('Preset name must be 1-64 characters');
+      }
+      if (!NAME_REGEX.test(trimmed)) {
+        throw new Error('Preset name contains invalid characters');
+      }
+      const reserved = new Set(['public', 'internal', 'none', 'custom']);
+      if (reserved.has(trimmed.toLowerCase())) {
+        throw new Error(`"${trimmed}" is a reserved preset name`);
+      }
+      if (!flags || typeof flags !== 'object' || Array.isArray(flags)) {
+        throw new Error('Flags must be an object');
+      }
+      const cleaned: Record<string, boolean> = {};
+      for (const [k, v] of Object.entries(flags)) {
+        if (typeof k !== 'string' || k.length > 64) continue;
+        if (typeof v !== 'boolean') continue;
+        cleaned[k] = v;
+      }
+      const json = JSON.stringify(cleaned);
+      if (json.length > 8192) throw new Error('Flags payload too large');
+      const now = new Date().toISOString();
+      getDb()
+        .prepare(
+          `INSERT INTO opsec_presets (name, flags_json, created_at, updated_at)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(name) DO UPDATE SET flags_json = excluded.flags_json, updated_at = excluded.updated_at`
+        )
+        .run(trimmed, json, now, now);
+    }
+  );
+
+  ipcMain.handle('exports.deleteOpsecPreset', (_, name: string): void => {
+    if (typeof name !== 'string') throw new Error('Preset name must be a string');
+    const trimmed = name.trim();
+    const reserved = new Set(['public', 'internal', 'none', 'custom']);
+    if (reserved.has(trimmed.toLowerCase())) {
+      throw new Error(`"${trimmed}" is a reserved preset name`);
+    }
+    getDb().prepare('DELETE FROM opsec_presets WHERE name = ?').run(trimmed);
+  });
+
   ipcMain.handle('exports.exportDna', (_, planId: number): { dna: string } => {
     const { plan, data } = buildPlanDataForExport(planId);
     const dna = encodeDnaV2Binary(data);

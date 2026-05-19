@@ -1521,6 +1521,11 @@ thead .matrix__sticky-col { z-index: 3; background: var(--bg-elev); }
 .exports__opsec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 12px; }
 .exports__opsec-row { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
 .exports__opsec-summary { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: 11px; }
+.exports__opsec-summary--error { color: var(--danger, #e06c75); }
+.exports__preset-select { background: var(--bg-elev-2); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; font-size: 11px; }
+.exports__preset-name-input { background: var(--bg-elev-2); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; font-size: 11px; min-width: 140px; }
+.exports__opsec-confirm { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 6px 10px; background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; }
+.exports__opsec-confirm-text { color: var(--fg); flex: 1; }
 .exports__log-empty { color: var(--fg-dim); font-size: 12px; padding: 20px; text-align: center; }
 .exports__log-file { font-family: 'Consolas', 'Courier New', monospace; font-size: 11px; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

@@ -142,6 +142,42 @@ export function runMigrations(db: DB, seedPath?: string): void {
         db.exec("ALTER TABLE moon_scans ADD COLUMN planet_name TEXT");
     }
 
+    // Moon scans were keyed on (system_id, moon_number, ore_type) which collides
+    // across planets — "Horkkisen VI - Moon 1" and "Horkkisen IX - Moon 1" both
+    // become (system=Horkkisen, moon=1). Fix: store the EVE MoonID from the
+    // clipboard and key on it. Existing rows are wiped because they were never
+    // captured with a MoonID and re-pasting is cheap.
+    if (!moonScanCols.includes("moon_id")) {
+        db.exec(`
+            DROP TABLE IF EXISTS moon_scans;
+            DROP TABLE IF EXISTS moon_drill_assignments;
+
+            CREATE TABLE moon_scans (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              session_id  INTEGER REFERENCES moon_scan_sessions(id) ON DELETE CASCADE,
+              system_id   INTEGER NOT NULL REFERENCES systems(id),
+              moon_id     INTEGER NOT NULL,
+              moon_number INTEGER NOT NULL,
+              planet_name TEXT,
+              ore_type    TEXT NOT NULL,
+              ore_percent REAL NOT NULL,
+              scan_date   TEXT,
+              UNIQUE(moon_id, ore_type)
+            );
+            CREATE INDEX idx_moon_scans_system ON moon_scans(system_id);
+
+            CREATE TABLE moon_drill_assignments (
+              moon_id        INTEGER PRIMARY KEY,
+              system_id      INTEGER NOT NULL REFERENCES systems(id),
+              structure_type TEXT NOT NULL
+            );
+        `);
+    }
+
+    // Index on moon_id lives here (not in SCHEMA_SQL) because the column may not
+    // exist when SCHEMA_SQL runs against a legacy user DB.
+    db.exec("CREATE INDEX IF NOT EXISTS idx_moon_scans_moon ON moon_scans(moon_id)");
+
     const planCols = (
         db.prepare("PRAGMA table_info(plans)").all() as { name: string }[]
     ).map((r) => r.name);

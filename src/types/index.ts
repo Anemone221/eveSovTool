@@ -186,6 +186,12 @@ export interface ExportLogEntry {
     exportedAt: string;
 }
 
+export interface OpsecPresetEntry {
+    name: string;
+    flags: Record<string, boolean>;
+    updatedAt: string;
+}
+
 export interface RefreshSovArgs {
     kind: SovCsvKind;
     path: string;
@@ -247,6 +253,7 @@ export interface MoonScan {
     sessionId: number | null;
     systemId: number;
     systemName: string;
+    moonId: number;
     moonNumber: number;
     planetName: string | null;
     planetType: string | null;
@@ -316,8 +323,8 @@ export type PriceField =
 export type DrillStructureType = 'Metenox' | 'Athanor' | 'Tatara';
 
 export interface MoonDrillAssignment {
+    moonId: number;
     systemId: number;
-    moonNumber: number;
     structureType: DrillStructureType;
 }
 
@@ -518,6 +525,9 @@ export interface EveSovApi {
         importDna: (dna: string) => Promise<{ planId: number; name: string }>;
         exportMoonScans: (planId: number) => Promise<{ data: string }>;
         importMoonScans: (data: string) => Promise<{ systemCount: number; moonsImported: number }>;
+        listOpsecPresets: () => Promise<OpsecPresetEntry[]>;
+        saveOpsecPreset: (name: string, flags: Record<string, boolean>) => Promise<void>;
+        deleteOpsecPreset: (name: string) => Promise<void>;
     };
     structures: {
         list: (planId: number, systemId?: number) => Promise<StructureNode[]>;
@@ -547,13 +557,12 @@ export interface EveSovApi {
         deleteSession: (sessionId: number) => Promise<void>;
         getDrillTypes: () => Promise<MoonDrillAssignment[]>;
         setDrillType: (
+            moonId: number,
             systemId: number,
-            moonNumber: number,
             structureType: DrillStructureType | null,
         ) => Promise<void>;
         profitability: (
-            systemId: number,
-            moonNumber: number,
+            moonId: number,
             structureType: DrillStructureType,
         ) => Promise<ProfitabilityResult | null>;
     };

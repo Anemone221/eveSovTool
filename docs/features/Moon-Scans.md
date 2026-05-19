@@ -16,18 +16,19 @@ CREATE TABLE IF NOT EXISTS moon_scans (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id  INTEGER REFERENCES moon_scan_sessions(id) ON DELETE CASCADE,
   system_id   INTEGER NOT NULL REFERENCES systems(id),
+  moon_id     INTEGER NOT NULL,            -- canonical EVE MoonID from clipboard
   moon_number INTEGER NOT NULL,
+  planet_name TEXT,
   ore_type    TEXT NOT NULL,
   ore_percent REAL NOT NULL,
   scan_date   TEXT,
-  UNIQUE(system_id, moon_number)
+  UNIQUE(moon_id, ore_type)
 );
 
 CREATE TABLE IF NOT EXISTS moon_drill_assignments (
+  moon_id        INTEGER PRIMARY KEY,
   system_id      INTEGER NOT NULL REFERENCES systems(id),
-  moon_number    INTEGER NOT NULL,
-  structure_type TEXT NOT NULL,         -- 'Metenox' | 'Athanor' | 'Tatara'
-  PRIMARY KEY (system_id, moon_number)
+  structure_type TEXT NOT NULL              -- 'Metenox' | 'Athanor' | 'Tatara'
 );
 ```
 
@@ -37,9 +38,9 @@ CREATE TABLE IF NOT EXISTS moon_drill_assignments (
 - `moonScans.list(systemId?)` → `MoonScan[]` — all scans, or filtered to one system.
 - `moonScans.sessions()` → `MoonScanSession[]` — list of import sessions with counts.
 - `moonScans.deleteSession(sessionId)` — cascades to all scans in the session; broadcasts `data-refreshed`.
-- `moonScans.getDrillTypes()` → `MoonDrillAssignment[]` — all (systemId, moonNumber, structureType) selections.
-- `moonScans.setDrillType(systemId, moonNumber, structureType | null)` — upserts or clears the drill assignment for a moon.
-- `moonScans.profitability(systemId, moonNumber, structureType)` → `ProfitabilityResult | null` — computes profit/hr from the moon's scan ores + current price field. Plan-independent; reuses [`computeProfitabilityForMoon`](../../electron/ipc/profitability.ts) which is also called by `structures.profitability` for `plan_structures` rows.
+- `moonScans.getDrillTypes()` → `MoonDrillAssignment[]` — all (moonId, systemId, structureType) selections.
+- `moonScans.setDrillType(moonId, systemId, structureType | null)` — upserts or clears the drill assignment for a moon.
+- `moonScans.profitability(moonId, structureType)` → `ProfitabilityResult | null` — computes profit/hr from the moon's scan ores + current price field. Plan-independent; reuses [`computeProfitabilityForMoonId`](../../electron/ipc/profitability.ts). A legacy `computeProfitabilityForMoon(systemId, moonNumber, …)` variant remains for `structures.profitability` until `plan_structures` is migrated to MoonID.
 - `plans.getSystemIds(planId)` → `number[]` — expanded list of system IDs covered by the plan's scopes; used by the summary's "active plan systems only" filter.
 
 ## Critical files
@@ -57,8 +58,9 @@ CREATE TABLE IF NOT EXISTS moon_drill_assignments (
 ## Key decisions
 
 - **Import UI**: a `<textarea>` with "Paste moon survey here" placeholder, no `window.prompt()`. On submit, text is sent to `moonScans.import`; the result (session summary) is displayed inline.
-- **Parser** runs in the main process so it can resolve system names to `system_id` via the `systems` table. EVE moon survey format has a header row (`Moon\tMoon Product\tQuantity\tOre TypeID\tSolarSystemID\tPlanetID\tMoonID`), then alternating moon label rows (no leading tab, e.g. `7-K5EL II - Moon 1`) and ore rows (leading tab, e.g. `\tBitumens\t0.298…\t45492\t…`). The parser strips the trailing planet word from the moon label to resolve the system name.
-- `UNIQUE(system_id, moon_number)` with `ON CONFLICT DO UPDATE` — re-importing an updated scan overwrites old data without leaving orphans.
+- **Parser** runs in the main process so it can resolve system names to `system_id` via the `systems` table. EVE moon survey format has a header row (`Moon\tMoon Product\tQuantity\tOre TypeID\tSolarSystemID\tPlanetID\tMoonID`), then alternating moon label rows (no leading tab, e.g. `7-K5EL II - Moon 1`) and ore rows (leading tab, e.g. `\tBitumens\t0.298…\t45492\t…\t40014334`). The parser strips the trailing planet word from the moon label to resolve the system name, and reads column 7 (MoonID) as the canonical key.
+- **Canonical MoonID key**: moon numbering is per-planet in EVE (planet VI - Moon 1 vs planet IX - Moon 1 are different moons that share a number). Storing only `(system_id, moon_number)` collided across planets and dropped ores. The clipboard already carries the globally-unique MoonID; we store it and key both `moon_scans` and `moon_drill_assignments` on it. Existing user DBs are wiped on first launch with the new schema and ask the user to re-paste — see [electron/db/migrations.ts](../../electron/db/migrations.ts).
+- `UNIQUE(moon_id, ore_type)` with `ON CONFLICT DO UPDATE` — re-importing an updated scan overwrites old data without leaving orphans.
 - **Session management** allows deleting stale scan batches. `ON DELETE CASCADE` on `moon_scans.session_id` handles cleanup.
 - **R-tier classification**: ore type matched by substring against 20 canonical names (5 per tier, R4–R64). `oreRTier()` in `moonScans.ts` is the single source of truth, imported by `map.ts` for `map.moonStats`.
 - **Per-moon drill assignment**: each moon row in MoonScansPage has a dropdown (`— None —` / Metenox / Athanor / Tatara). Selecting a type writes to `moon_drill_assignments` and the page fetches `moonScans.profitability` for that moon, displaying `profitPerHour` formatted as `B/M/K ISK/hr`. If `data.hasMarketData()` is false the row shows "Enable Data Sync" instead of a number. Plan-independent on purpose: this is moon-level, not plan-level, configuration.

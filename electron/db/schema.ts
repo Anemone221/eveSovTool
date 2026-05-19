@@ -171,6 +171,13 @@ CREATE TABLE IF NOT EXISTS export_config (
   value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS opsec_presets (
+  name        TEXT PRIMARY KEY,
+  flags_json  TEXT NOT NULL,
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+
 -- ===== Moon scans =====
 
 CREATE TABLE IF NOT EXISTS moon_scan_sessions (
@@ -183,20 +190,21 @@ CREATE TABLE IF NOT EXISTS moon_scans (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id  INTEGER REFERENCES moon_scan_sessions(id) ON DELETE CASCADE,
   system_id   INTEGER NOT NULL REFERENCES systems(id),
+  moon_id     INTEGER NOT NULL,
   moon_number INTEGER NOT NULL,
   planet_name TEXT,
   ore_type    TEXT NOT NULL,
   ore_percent REAL NOT NULL,
   scan_date   TEXT,
-  UNIQUE(system_id, moon_number, ore_type)
+  UNIQUE(moon_id, ore_type)
 );
 CREATE INDEX IF NOT EXISTS idx_moon_scans_system ON moon_scans(system_id);
+-- idx_moon_scans_moon is created in migrations.ts after the moon_id column is added
 
 CREATE TABLE IF NOT EXISTS moon_drill_assignments (
+  moon_id        INTEGER PRIMARY KEY,
   system_id      INTEGER NOT NULL REFERENCES systems(id),
-  moon_number    INTEGER NOT NULL,
-  structure_type TEXT NOT NULL,
-  PRIMARY KEY (system_id, moon_number)
+  structure_type TEXT NOT NULL
 );
 
 -- ===== Market data (everef.net daily history) =====

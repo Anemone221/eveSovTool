@@ -80,11 +80,11 @@ function planetOrdinal(planetName: string | null): number {
     return n > 0 ? n : Infinity;
 }
 
-function groupMoonsByNumber(scans: MoonScan[]): { moonNumber: number; ores: MoonScan[] }[] {
+function groupMoonsByNumber(scans: MoonScan[]): { moonId: number; moonNumber: number; ores: MoonScan[] }[] {
     const map = new Map<number, MoonScan[]>();
     for (const scan of scans) {
-        if (!map.has(scan.moonNumber)) map.set(scan.moonNumber, []);
-        map.get(scan.moonNumber)!.push(scan);
+        if (!map.has(scan.moonId)) map.set(scan.moonId, []);
+        map.get(scan.moonId)!.push(scan);
     }
     return [...map.values()]
         .sort((a, b) => {
@@ -93,7 +93,7 @@ function groupMoonsByNumber(scans: MoonScan[]): { moonNumber: number; ores: Moon
             if (pa !== pb) return pa - pb;
             return (a[0]?.moonNumber ?? 0) - (b[0]?.moonNumber ?? 0);
         })
-        .map((ores) => ({ moonNumber: ores[0]!.moonNumber, ores }));
+        .map((ores) => ({ moonId: ores[0]!.moonId, moonNumber: ores[0]!.moonNumber, ores }));
 }
 
 function computeHighestMoonTier(oreTypes: string[]): 4 | 8 | 16 | 32 | 64 | null {
@@ -331,11 +331,11 @@ export function SystemDetail() {
             if (cancelled) return;
             setDetail(d);
             setMoonScans(scans);
-            setCollapsedMoons(new Set(scans.map((s) => s.moonNumber)));
+            setCollapsedMoons(new Set(scans.map((s) => s.moonId)));
             setHighestMoonTier(computeHighestMoonTier(scans.map((s) => s.oreType)));
             const dt: Record<number, DrillStructureType> = {};
             for (const a of allDrillTypes) {
-                if (a.systemId === systemId) dt[a.moonNumber] = a.structureType;
+                if (a.systemId === systemId) dt[a.moonId] = a.structureType;
             }
             setDrillTypes(dt);
             setHasMarketData(hmd);
@@ -365,7 +365,7 @@ export function SystemDetail() {
         const off = evesov.events.on("data-refreshed", () => {
             void evesov.moonScans.list(systemId).then((scans) => {
                 setMoonScans(scans);
-                setCollapsedMoons(new Set(scans.map((s) => s.moonNumber)));
+                setCollapsedMoons(new Set(scans.map((s) => s.moonId)));
                 setHighestMoonTier(computeHighestMoonTier(scans.map((s) => s.oreType)));
             });
             void evesov.data.hasMarketData().then(setHasMarketData);
@@ -378,14 +378,13 @@ export function SystemDetail() {
         let cancelled = false;
         void (async () => {
             const entries = await Promise.all(
-                Object.entries(drillTypes).map(async ([mn, type]) => {
-                    const moonNumber = Number(mn);
+                Object.entries(drillTypes).map(async ([mid, type]) => {
+                    const moonId = Number(mid);
                     const result = await evesov.moonScans.profitability(
-                        systemId,
-                        moonNumber,
+                        moonId,
                         type,
                     );
-                    return [moonNumber, result] as const;
+                    return [moonId, result] as const;
                 }),
             );
             if (cancelled) return;
@@ -397,22 +396,22 @@ export function SystemDetail() {
     }, [systemId, drillTypes, hasMarketData]);
 
     const handleDrillTypeChange = async (
-        moonNumber: number,
+        moonId: number,
         value: string,
     ) => {
         if (systemId === null) return;
         const next = value === '' ? null : (value as DrillStructureType);
-        await evesov.moonScans.setDrillType(systemId, moonNumber, next);
+        await evesov.moonScans.setDrillType(moonId, systemId, next);
         setDrillTypes((prev) => {
             const copy = { ...prev };
-            if (next === null) delete copy[moonNumber];
-            else copy[moonNumber] = next;
+            if (next === null) delete copy[moonId];
+            else copy[moonId] = next;
             return copy;
         });
         if (next === null) {
             setMoonProfit((prev) => {
                 const copy = { ...prev };
-                delete copy[moonNumber];
+                delete copy[moonId];
                 return copy;
             });
         }
@@ -1378,27 +1377,27 @@ export function SystemDetail() {
                     </button>
                     {moonsOpen && (
                         <div className="detail__moons">
-                            {groupMoonsByNumber(moonScans).map(({ moonNumber, ores }) => {
+                            {groupMoonsByNumber(moonScans).map(({ moonId, moonNumber, ores }) => {
                                 const moonBest = computeHighestMoonTier(ores.map((o) => o.oreType));
                                 const planetName = ores[0]?.planetName ?? null;
                                 const planetType = ores[0]?.planetType ?? null;
-                                const drillType = drillTypes[moonNumber] ?? '';
-                                const prof = moonProfit[moonNumber];
+                                const drillType = drillTypes[moonId] ?? '';
+                                const prof = moonProfit[moonId];
                                 return (
-                                    <div key={moonNumber} className="detail__moon">
+                                    <div key={moonId} className="detail__moon">
                                         <div className="detail__moon-header-row">
                                         <button
                                             type="button"
                                             className="detail__moon-header"
                                             onClick={() => setCollapsedMoons((prev) => {
                                                 const next = new Set(prev);
-                                                if (next.has(moonNumber)) next.delete(moonNumber);
-                                                else next.add(moonNumber);
+                                                if (next.has(moonId)) next.delete(moonId);
+                                                else next.add(moonId);
                                                 return next;
                                             })}
                                         >
                                             <span className="tree__chevron">
-                                                {collapsedMoons.has(moonNumber) ? "▸" : "▾"}
+                                                {collapsedMoons.has(moonId) ? "▸" : "▾"}
                                             </span>
                                             <span className="detail__moon-num">
                                                 {planetName
@@ -1432,7 +1431,7 @@ export function SystemDetail() {
                                             className="detail__moon-drill-select"
                                             value={drillType}
                                             onChange={(e) =>
-                                                void handleDrillTypeChange(moonNumber, e.target.value)
+                                                void handleDrillTypeChange(moonId, e.target.value)
                                             }
                                         >
                                             <option value="">— None —</option>
@@ -1441,7 +1440,7 @@ export function SystemDetail() {
                                             ))}
                                         </select>
                                         </div>
-                                        {!collapsedMoons.has(moonNumber) && ores.map((ore) => {
+                                        {!collapsedMoons.has(moonId) && ores.map((ore) => {
                                             const tier = oreTier(ore.oreType);
                                             const color = tier ? MOON_TIER_COLORS[tier] : '#8b949e';
                                             return (

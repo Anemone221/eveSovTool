@@ -2,7 +2,7 @@ import { ipcMain } from 'electron';
 import { getDb } from '../db/userDb.js';
 import type { MoonScan, MoonScanSession } from '@shared/index';
 import {
-  computeProfitabilityForMoon,
+  computeProfitabilityForMoonId,
   isDrillStructure,
   type DrillStructureType,
   type ProfitabilityResult,
@@ -63,11 +63,12 @@ function parseMoonSurvey(text: string): {
   systemName: string;
   planetName: string;
   moonNumber: number;
+  moonId: number;
   oreType: string;
   orePercent: number;
 }[] {
   const lines = text.split(/\r?\n/);
-  const results: { systemName: string; planetName: string; moonNumber: number; oreType: string; orePercent: number }[] = [];
+  const results: { systemName: string; planetName: string; moonNumber: number; moonId: number; oreType: string; orePercent: number }[] = [];
 
   let currentSystemName: string | null = null;
   let currentPlanetName: string | null = null;
@@ -79,14 +80,15 @@ function parseMoonSurvey(text: string): {
     if (/^Moon\t/i.test(line)) continue;
 
     if (line.startsWith('\t')) {
-      // Ore row: \tOreType\tQuantity\t...
+      // Ore row: \tOreType\tQuantity\tOreTypeID\tSolarSystemID\tPlanetID\tMoonID
       if (currentSystemName === null || currentMoonNumber === null || currentPlanetName === null) continue;
       const cols = line.split('\t');
       // cols[0] is the empty string before the leading tab
       const oreType = cols[1]?.trim();
       const orePercent = parseFloat(cols[2] ?? '');
-      if (!oreType || Number.isNaN(orePercent)) continue;
-      results.push({ systemName: currentSystemName, planetName: currentPlanetName, moonNumber: currentMoonNumber, oreType, orePercent });
+      const moonId = parseInt(cols[6] ?? '', 10);
+      if (!oreType || Number.isNaN(orePercent) || !Number.isFinite(moonId) || moonId <= 0) continue;
+      results.push({ systemName: currentSystemName, planetName: currentPlanetName, moonNumber: currentMoonNumber, moonId, oreType, orePercent });
     } else {
       // Moon label row: "7-K5EL II - Moon 1"
       // moonMatch[1] is the planet label e.g. "7-K5EL II"; system name is derived by stripping the trailing word
@@ -140,10 +142,12 @@ export function registerMoonScansIpc(): void {
     const now = new Date().toISOString();
 
     const upsert = db.prepare(`
-      INSERT INTO moon_scans (session_id, system_id, moon_number, planet_name, ore_type, ore_percent)
-      VALUES (@sessionId, @systemId, @moonNumber, @planetName, @oreType, @orePercent)
-      ON CONFLICT(system_id, moon_number, ore_type) DO UPDATE SET
+      INSERT INTO moon_scans (session_id, system_id, moon_id, moon_number, planet_name, ore_type, ore_percent)
+      VALUES (@sessionId, @systemId, @moonId, @moonNumber, @planetName, @oreType, @orePercent)
+      ON CONFLICT(moon_id, ore_type) DO UPDATE SET
         session_id  = excluded.session_id,
+        system_id   = excluded.system_id,
+        moon_number = excluded.moon_number,
         planet_name = excluded.planet_name,
         ore_percent = excluded.ore_percent
     `);
@@ -153,7 +157,7 @@ export function registerMoonScansIpc(): void {
     `);
 
     let sessionId!: number;
-    let moonsImported = 0;
+    const moonIds = new Set<number>();
 
     db.transaction(() => {
       const info = insertSession.run(now, systemCount);
@@ -163,14 +167,17 @@ export function registerMoonScansIpc(): void {
         upsert.run({
           sessionId,
           systemId: row.systemId,
+          moonId: row.moonId,
           moonNumber: row.moonNumber,
           planetName: row.planetName,
           oreType: row.oreType,
           orePercent: row.orePercent,
         });
-        moonsImported++;
+        moonIds.add(row.moonId);
       }
     })();
+
+    const moonsImported = moonIds.size;
 
     const { BrowserWindow } = require('electron') as typeof import('electron');
     for (const win of BrowserWindow.getAllWindows()) {
@@ -187,6 +194,7 @@ export function registerMoonScansIpc(): void {
       session_id: number | null;
       system_id: number;
       system_name: string;
+      moon_id: number;
       moon_number: number;
       planet_name: string | null;
       planet_type: string | null;
@@ -197,7 +205,7 @@ export function registerMoonScansIpc(): void {
 
     const baseSelect = `
       SELECT ms.id, ms.session_id, ms.system_id, s.name AS system_name,
-             ms.moon_number, ms.planet_name,
+             ms.moon_id, ms.moon_number, ms.planet_name,
              p.planet_type,
              ms.ore_type, ms.ore_percent, ms.scan_date
       FROM moon_scans ms
@@ -205,14 +213,15 @@ export function registerMoonScansIpc(): void {
       LEFT JOIN planets p ON p.system_id = ms.system_id AND p.name = ms.planet_name`;
 
     const rows = systemId !== undefined
-      ? db.prepare(`${baseSelect} WHERE ms.system_id = ? ORDER BY ms.moon_number`).all(systemId) as Row[]
-      : db.prepare(`${baseSelect} ORDER BY s.name, ms.moon_number`).all() as Row[];
+      ? db.prepare(`${baseSelect} WHERE ms.system_id = ? ORDER BY ms.planet_name, ms.moon_number`).all(systemId) as Row[]
+      : db.prepare(`${baseSelect} ORDER BY s.name, ms.planet_name, ms.moon_number`).all() as Row[];
 
     return rows.map((r) => ({
       id: r.id,
       sessionId: r.session_id,
       systemId: r.system_id,
       systemName: r.system_name,
+      moonId: r.moon_id,
       moonNumber: r.moon_number,
       planetName: r.planet_name,
       planetType: r.planet_type,
@@ -237,17 +246,17 @@ export function registerMoonScansIpc(): void {
 
   ipcMain.handle(
     'moonScans.getDrillTypes',
-    (): { systemId: number; moonNumber: number; structureType: DrillStructureType }[] => {
+    (): { moonId: number; systemId: number; structureType: DrillStructureType }[] => {
       const db = getDb();
-      type Row = { system_id: number; moon_number: number; structure_type: string };
+      type Row = { moon_id: number; system_id: number; structure_type: string };
       const rows = db
-        .prepare('SELECT system_id, moon_number, structure_type FROM moon_drill_assignments')
+        .prepare('SELECT moon_id, system_id, structure_type FROM moon_drill_assignments')
         .all() as Row[];
       return rows
         .filter((r) => isDrillStructure(r.structure_type))
         .map((r) => ({
+          moonId: r.moon_id,
           systemId: r.system_id,
-          moonNumber: r.moon_number,
           structureType: r.structure_type as DrillStructureType,
         }));
     },
@@ -257,22 +266,24 @@ export function registerMoonScansIpc(): void {
     'moonScans.setDrillType',
     (
       _,
+      moonId: number,
       systemId: number,
-      moonNumber: number,
       structureType: DrillStructureType | null,
     ): void => {
       const db = getDb();
       if (structureType === null) {
         db.prepare(
-          'DELETE FROM moon_drill_assignments WHERE system_id = ? AND moon_number = ?',
-        ).run(systemId, moonNumber);
+          'DELETE FROM moon_drill_assignments WHERE moon_id = ?',
+        ).run(moonId);
       } else {
         if (!isDrillStructure(structureType)) return;
         db.prepare(
-          `INSERT INTO moon_drill_assignments (system_id, moon_number, structure_type)
+          `INSERT INTO moon_drill_assignments (moon_id, system_id, structure_type)
            VALUES (?, ?, ?)
-           ON CONFLICT(system_id, moon_number) DO UPDATE SET structure_type = excluded.structure_type`,
-        ).run(systemId, moonNumber, structureType);
+           ON CONFLICT(moon_id) DO UPDATE SET
+             system_id = excluded.system_id,
+             structure_type = excluded.structure_type`,
+        ).run(moonId, systemId, structureType);
       }
     },
   );
@@ -281,12 +292,11 @@ export function registerMoonScansIpc(): void {
     'moonScans.profitability',
     (
       _,
-      systemId: number,
-      moonNumber: number,
+      moonId: number,
       structureType: DrillStructureType,
     ): ProfitabilityResult | null => {
       if (!isDrillStructure(structureType)) return null;
-      return computeProfitabilityForMoon(getDb(), systemId, moonNumber, structureType);
+      return computeProfitabilityForMoonId(getDb(), moonId, structureType);
     },
   );
 

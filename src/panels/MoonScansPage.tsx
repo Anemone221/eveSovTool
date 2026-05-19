@@ -10,8 +10,8 @@ import type {
 
 const DRILL_OPTIONS: DrillStructureType[] = ['Metenox', 'Athanor', 'Tatara'];
 
-function moonKey(systemId: number, moonNumber: number): string {
-  return `${systemId}:${moonNumber}`;
+function moonKey(moonId: number): string {
+  return `${moonId}`;
 }
 
 function formatIsk(value: number): string {
@@ -61,6 +61,7 @@ interface SystemMoons {
 }
 
 interface MoonGroup {
+  moonId: number;
   moonNumber: number;
   ores: MoonScan[];
 }
@@ -89,10 +90,10 @@ function planetOrdinal(planetName: string | null): number {
 function groupByMoon(scans: MoonScan[]): MoonGroup[] {
   const map = new Map<number, MoonGroup>();
   for (const scan of scans) {
-    if (!map.has(scan.moonNumber)) {
-      map.set(scan.moonNumber, { moonNumber: scan.moonNumber, ores: [] });
+    if (!map.has(scan.moonId)) {
+      map.set(scan.moonId, { moonId: scan.moonId, moonNumber: scan.moonNumber, ores: [] });
     }
-    map.get(scan.moonNumber)!.ores.push(scan);
+    map.get(scan.moonId)!.ores.push(scan);
   }
   return [...map.values()].sort((a, b) => {
     const pa = planetOrdinal(a.ores[0]?.planetName ?? null);
@@ -124,7 +125,7 @@ export function MoonScansPage() {
   const [sessionsCollapsed, setSessionsCollapsed] = useState(true);
   const [filterTier, setFilterTier] = useState<number | null>(null);
   const [searchText, setSearchText] = useState('');
-  const [drillTypes, setDrillTypes] = useState<Record<string, DrillStructureType>>({});
+  const [drillTypes, setDrillTypes] = useState<Record<string, { systemId: number; structureType: DrillStructureType }>>({});
   const [profitability, setProfitability] = useState<Record<string, ProfitabilityResult | null>>({});
   const [hasMarketData, setHasMarketData] = useState(false);
 
@@ -145,8 +146,8 @@ export function MoonScansPage() {
     setSessions(s);
     setScans(sc);
     setCollapsed(new Set(sc.map((scan) => scan.systemId)));
-    const map: Record<string, DrillStructureType> = {};
-    for (const a of dt) map[moonKey(a.systemId, a.moonNumber)] = a.structureType;
+    const map: Record<string, { systemId: number; structureType: DrillStructureType }> = {};
+    for (const a of dt) map[moonKey(a.moonId)] = { systemId: a.systemId, structureType: a.structureType };
     setDrillTypes(map);
     setHasMarketData(hmd);
   }, []);
@@ -155,9 +156,9 @@ export function MoonScansPage() {
     let cancelled = false;
     void (async () => {
       const entries = await Promise.all(
-        Object.entries(drillTypes).map(async ([key, type]) => {
-          const [sid, mn] = key.split(':').map(Number);
-          const result = await evesov.moonScans.profitability(sid, mn, type);
+        Object.entries(drillTypes).map(async ([key, { structureType }]) => {
+          const moonId = Number(key);
+          const result = await evesov.moonScans.profitability(moonId, structureType);
           return [key, result] as const;
         }),
       );
@@ -170,17 +171,17 @@ export function MoonScansPage() {
   }, [drillTypes, hasMarketData]);
 
   const handleDrillTypeChange = async (
+    moonId: number,
     systemId: number,
-    moonNumber: number,
     value: string,
   ) => {
-    const key = moonKey(systemId, moonNumber);
+    const key = moonKey(moonId);
     const next = value === '' ? null : (value as DrillStructureType);
-    await evesov.moonScans.setDrillType(systemId, moonNumber, next);
+    await evesov.moonScans.setDrillType(moonId, systemId, next);
     setDrillTypes((prev) => {
       const copy = { ...prev };
       if (next === null) delete copy[key];
-      else copy[key] = next;
+      else copy[key] = { systemId, structureType: next };
       return copy;
     });
     if (next === null) {
@@ -231,16 +232,14 @@ export function MoonScansPage() {
     const rows: MoonRow[] = [];
     const scansByMoon = new Map<string, MoonScan[]>();
     for (const sc of scans) {
-      const k = moonKey(sc.systemId, sc.moonNumber);
+      const k = moonKey(sc.moonId);
       if (!scansByMoon.has(k)) scansByMoon.set(k, []);
       scansByMoon.get(k)!.push(sc);
     }
-    for (const [key, structureType] of Object.entries(drillTypes)) {
-      const [sidStr, mnStr] = key.split(':');
-      const systemId = Number(sidStr);
-      const moonNumber = Number(mnStr);
+    for (const [key, { systemId, structureType }] of Object.entries(drillTypes)) {
       const moonScans = scansByMoon.get(key);
       if (!moonScans || moonScans.length === 0) continue;
+      const moonNumber = moonScans[0].moonNumber;
       if (summaryPlanOnly && planSystemIds && !planSystemIds.has(systemId)) continue;
       if (summaryStructureFilter !== 'All' && structureType !== summaryStructureFilter) continue;
       const tiers = moonScans
@@ -589,12 +588,12 @@ export function MoonScansPage() {
               </button>
               {!collapsed.has(systemId) && (
                 <div className="moon-scans__moon-list">
-                  {groupByMoon(moons).map(({ moonNumber, ores }) => {
-                    const key = moonKey(systemId, moonNumber);
-                    const drillType = drillTypes[key] ?? '';
+                  {groupByMoon(moons).map(({ moonId, moonNumber, ores }) => {
+                    const key = moonKey(moonId);
+                    const drillType = drillTypes[key]?.structureType ?? '';
                     const prof = profitability[key];
                     return (
-                    <div key={moonNumber} className="moon-scans__moon">
+                    <div key={moonId} className="moon-scans__moon">
                       <div className="moon-scans__moon-header">
                         <span className="moon-scans__moon-num">
                           {ores[0]?.planetName
@@ -625,7 +624,7 @@ export function MoonScansPage() {
                           className="moon-scans__drill-select"
                           value={drillType}
                           onChange={(e) =>
-                            void handleDrillTypeChange(systemId, moonNumber, e.target.value)
+                            void handleDrillTypeChange(moonId, systemId, e.target.value)
                           }
                         >
                           <option value="">— None —</option>

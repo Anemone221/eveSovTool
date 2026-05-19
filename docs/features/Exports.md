@@ -22,6 +22,13 @@ CREATE TABLE export_config (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+CREATE TABLE opsec_presets (
+  name        TEXT PRIMARY KEY,
+  flags_json  TEXT NOT NULL,
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
 ```
 
 `export_config` keys (`'1'`/`'0'`):
@@ -38,6 +45,9 @@ CREATE TABLE export_config (
 - `exports.exportDna(planId)` → `{ dna }` — emits compact `ESOV2B` form. Logs `dna-export`.
 - `exports.exportDnaText(planId)` → `{ dna }` — emits human-readable `ESOV2T` form. Logs `dna-export-text`.
 - `exports.importDna(dna)` → `{ planId, name }` — accepts `ESOV1`, `ESOV2B`, or `ESOV2T`. Strict validation, all-or-nothing transaction. Logs `dna-import`. Broadcasts `plan-changed`.
+- `exports.listOpsecPresets()` → `OpsecPresetEntry[]` — user-saved opsec presets, sorted by name.
+- `exports.saveOpsecPreset(name, flags)` — UPSERT a named preset. Name must match `^[\w\s\-_.()]+$`, length ≤ 64, and not be one of the reserved built-in names (`public`, `internal`, `none`, `custom`).
+- `exports.deleteOpsecPreset(name)` — remove a user preset (reserved names rejected).
 
 ## DNA formats
 
@@ -125,6 +135,10 @@ Three redaction layers, depending on what's being captured:
 3. **Imperative SVG scrubbing** — RegionMap's PNG/SVG export paths render a *cloned* SVG standalone (via an `<img>` data URL or direct serialisation), so body-level CSS does NOT apply. `applyRegionMapOpsec(clone)` mutates the clone before serialisation: removes `<image>` icons under `#evesov-overlay` (when `hideMapIcons` or `hideSupercaps`), removes `.evesov-moon-label` text (when `hideMoonScans`), and rewrites dotlan system-name `<text>` nodes to `Sys-N` (when `hideSystemNames`). The live SVG is never touched.
 
 The pill (`<OpsecPill />`) is driven by the configured flags (not capture state), so it reads green whenever any redaction is queued for the next capture. Click → focuses the Exports panel.
+
+### User-saved presets
+
+In addition to the three built-in presets (`public`, `internal`, `none`) the Exports page's op-sec card lets the user save the current flag set as a named preset, stored in the `opsec_presets` table. The header `<select>` lists built-ins first, then user presets; `Save as…` opens an inline name input (overwrite is confirmed); `Delete` appears only when a user preset is the active selection. `presetFor()` in [src/state/opsecStore.ts](../../src/state/opsecStore.ts) checks user-preset flag-sets in addition to the built-ins, so toggling flags back to a saved configuration re-selects that preset instead of dropping to `Custom`.
 
 ## Filename pattern
 
